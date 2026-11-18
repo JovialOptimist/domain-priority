@@ -1,10 +1,14 @@
 const $ = id => document.getElementById(id);
 
+// "✓ Saved" shows for 1.6 s after the last save. Each save restarts the
+// timer, so a quick second save isn't cut short by the first one's.
+let savedTimer = 0;
 function flashSaved() {
   const st = $('status');
   st.textContent = '✓ Saved';
   st.classList.add('show');
-  setTimeout(() => { st.classList.remove('show'); st.textContent = ''; }, 1200);
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => { st.classList.remove('show'); st.textContent = ''; }, 1600);
 }
 
 // Read out by screen readers (visually hidden live region).

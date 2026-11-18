@@ -357,6 +357,7 @@
     toast.className = 't';
     toast.hidden = true;
     toast.setAttribute('role', 'status');
+    watchToast(toast);
     const bar = document.createElement('div');
     bar.className = 't eb';
     bar.hidden = true;
@@ -468,7 +469,7 @@
       html.setAttribute(EDITING, '');
       document.body.inert = true;   // no clicks or focus reach Google's links while editing
       document.addEventListener('keydown', onEditKey, true);
-      if (overlay) overlay.toast.hidden = true;
+      hideToast();
     } else {
       html.removeAttribute(EDITING);
       document.body.inert = false;
@@ -544,7 +545,40 @@
     }
   }
 
+  // The "hidden on every search · Undo" toast stays 8 s. While the pointer
+  // is on it, or someone is using it from the keyboard, the clock stops;
+  // leaving it restarts a 4 s countdown (WCAG 2.2.1: time limits can be
+  // extended). Esc closes it.
   let toastTimer = null;
+  let toastHeld = { pointer: false, keys: false };
+
+  function hideToast() {
+    clearTimeout(toastTimer);
+    if (overlay) overlay.toast.hidden = true;
+  }
+
+  function scheduleToastHide(ms) {
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { if (!toastHeld.pointer && !toastHeld.keys) hideToast(); }, ms);
+  }
+
+  function watchToast(toast) {
+    toast.addEventListener('mouseenter', () => { toastHeld.pointer = true; clearTimeout(toastTimer); });
+    toast.addEventListener('mouseleave', () => { toastHeld.pointer = false; scheduleToastHide(4000); });
+    // Focus alone doesn't hold it, since Undo is focused for you when it
+    // appears; pressing a key in it does, until focus leaves.
+    toast.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); hideToast(); return; }
+      toastHeld.keys = true;
+      clearTimeout(toastTimer);
+    });
+    toast.addEventListener('focusout', e => {
+      if (toast.contains(e.relatedTarget)) return;
+      toastHeld.keys = false;
+      if (!toast.hidden) scheduleToastHide(4000);
+    });
+  }
+
   function showUndo(key) {
     const { toast } = ensureOverlay();
     toast.replaceChildren();
@@ -553,12 +587,12 @@
     const undo = document.createElement('button');
     undo.type = 'button';
     undo.textContent = 'Undo';
-    undo.addEventListener('click', () => { toast.hidden = true; setHidden(key, false, false); });
+    undo.addEventListener('click', () => { hideToast(); setHidden(key, false, false); });
     toast.append(msg, undo);
     toast.hidden = false;
+    toastHeld = { pointer: toast.matches(':hover'), keys: false };
     undo.focus({ preventScroll: true });
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { toast.hidden = true; }, 8000);
+    scheduleToastHide(8000);
   }
 
   function setHidden(key, value, withUndo) {
@@ -635,8 +669,18 @@
   }
 
   // edge: 'top' | 'bottom' | null (hide).
-  function showPeek(edge, text) {
-    if (!edge) { if (overlay) overlay.peek.hidden = true; return; }
+  // Hiding waits 250 ms (unless now is set): moving the pointer from one
+  // popup row to the next briefly points at nothing, and the label would
+  // blink off and on. A new label in that time just replaces the text.
+  let peekHideTimer = 0;
+  function showPeek(edge, text, now) {
+    clearTimeout(peekHideTimer);
+    if (!edge) {
+      if (!overlay) return;
+      if (now) overlay.peek.hidden = true;
+      else peekHideTimer = setTimeout(() => { if (overlay) overlay.peek.hidden = true; }, 250);
+      return;
+    }
     const { peek } = ensureOverlay();
     peek.className = 'p ' + edge;
     peek.textContent = text;
@@ -686,13 +730,13 @@
       if (msg.type === 'status') sendStatus(true);
       if (msg.type === 'preview') { previewKey = msg.key || null; applyPreview(); }
       if (msg.type === 'edit') {
-        previewKey = null; applyPreview(); setEditing(true);
+        previewKey = null; applyPreview(); showPeek(null, null, true); setEditing(true);
         try { port.postMessage({ type: 'editing' }); } catch { /* popup already gone */ }
       }
     });
     port.onDisconnect.addListener(() => {
       ports.delete(port);
-      if (!ports.size) { previewKey = null; applyPreview(); updateZoom(); }
+      if (!ports.size) { previewKey = null; applyPreview(); showPeek(null, null, true); updateZoom(); }
     });
     updateZoom();
   });

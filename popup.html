@@ -5,42 +5,129 @@
   <title>Domain Priority</title>
   <link rel="stylesheet" href="ui.css">
   <style>
-    body { width: 320px; box-sizing: border-box; max-width: none; margin: 0; padding: 12px 12px 14px; overflow-x: hidden; }
-    .ghead { margin: 14px 4px 6px; }
-    .empty { color: var(--muted); font-size: 13px; }
-    .foot { margin: 12px 4px 0; }
-    .edit-wrap { margin: 10px 4px 0; }
-    .edit-wrap .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
-    .btn { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card);
-           color: var(--text); cursor: pointer; }
+    /* Popup layout: a power card, two grouped lists, and a footer bar. */
+    :root { --footer: #eef0f3; --hidden-bg: #f5f6f8; --ring: #e4ebf8; --handle: #8a9099; --lift: rgba(20, 24, 30, .16); }
+    @media (prefers-color-scheme: dark) {
+      :root { --footer: #1c1e22; --hidden-bg: #1c1f23; --ring: rgba(138, 180, 248, .25); --handle: #7d838c; --lift: rgba(0, 0, 0, .5); }
+    }
+    html, body { margin: 0; }
+    body { width: 360px; max-width: none; padding: 0; display: flex; flex-direction: column; overflow-x: hidden; }
+    main { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+    .ghead { margin: 0 4px 6px; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    /* Power card. The button is a toggle: filled with a ring when on, an
+       outline when off. The title next to it says which in words. */
+    .power-card { display: flex; align-items: center; gap: 14px; padding: 12px 14px; background: var(--card);
+                  border: 1px solid var(--line); border-radius: 12px; }
+    .power { width: 52px; height: 52px; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+             cursor: pointer; border: none; background: var(--check); color: #fff; box-shadow: 0 0 0 4px var(--ring);
+             transition: background .15s, box-shadow .15s; }
+    .power[aria-pressed="false"] { border: 2px solid var(--muted); background: var(--card); color: var(--muted); box-shadow: none; }
+    .power:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .power-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .power-title { font-size: 15px; font-weight: 600; }
+    .power-sub { font-size: 12px; color: var(--muted); }
+    #lists { display: flex; flex-direction: column; gap: 12px; transition: opacity .15s; }
+    body.is-off #lists { opacity: .5; }
+    .saved { bottom: 72px; }   /* above the footer bar */
+
+    /* Rows shared by both lists: 40px tall, hairline between them. */
+    .lrow { display: flex; align-items: center; gap: 8px; min-height: 40px; box-sizing: border-box; background: var(--card); }
+    .lrow + .lrow, .add-row, #add-form { border-top: 1px solid var(--line); }
+    .lrow.empty { padding: 10px 14px; color: var(--muted); font-size: 13px; }
+    .icon-btn { width: 32px; height: 32px; flex: none; border: none; border-radius: 8px; background: transparent; color: var(--muted);
+                display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+    .icon-btn:hover { background: var(--hover); color: var(--text); }
+    .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+    /* Preferred domains: drag handle, rank, name, remove. */
+    .drow { padding: 0 6px 0 4px; position: relative; }
+    .drow .handle { width: 28px; color: var(--handle); cursor: grab; touch-action: none; }
+    .drow .rank { width: 20px; flex: none; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; }
+    .drow .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drow .hint { font-size: 11px; color: var(--muted); display: none; }
+    .drow.lifted { z-index: 1; box-shadow: 0 4px 14px var(--lift); outline: 2px solid var(--check); outline-offset: -2px; }
+    .drow.lifted .handle { color: var(--check); cursor: grabbing; }
+    .drow.lifted .hint, .drow .handle:focus-visible ~ .hint { display: inline; }
+    .remove { font: 18px/1 system-ui, sans-serif; }
+    .add-row { width: 100%; height: 40px; padding: 0 12px; border: none; background: transparent; color: var(--accent);
+               font: inherit; text-align: left; cursor: pointer; }
+    .add-row:hover { background: var(--hover); }
+    .add-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    #add-form { display: flex; gap: 8px; align-items: center; padding: 6px 8px 6px 12px; margin: 0; }
+    #add-form[hidden] { display: none; }
+    #add-form input { flex: 1; min-width: 0; height: 30px; font: inherit; font-size: 13px; padding: 0 8px; border-radius: 6px;
+                      border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+    #add-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 0; }
+    .small-btn { height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--text);
+                 font: inherit; font-size: 13px; cursor: pointer; }
+    .small-btn:hover { background: var(--hover); }
+    .small-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .add-msg { font-size: 12px; margin: 4px 4px 0; color: var(--muted); }
+    .add-msg:empty { display: none; }
+    .add-msg.err { color: var(--error); }
+
+    /* Sections on this page: name and an eye toggle. Open eye = shown,
+       eye with a slash = hidden; hidden rows are greyed too. */
+    .srow { padding: 0 6px 0 14px; }
+    .srow .name { flex: 1; min-width: 0; }
+    .srow.hidden { background: var(--hidden-bg); color: var(--muted); }
+    .srow .eye { color: var(--text); }
+    .srow.hidden .eye { color: var(--muted); }
+
+    /* Footer bar. */
+    footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px;
+             border-top: 1px solid var(--line); background: var(--footer); }
+    .btn { height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text);
+           font: inherit; font-weight: 500; cursor: pointer; }
     .btn:hover:not(:disabled) { background: var(--hover); }
     .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .btn:disabled { opacity: .5; cursor: default; }
+    footer .linkbtn { font-size: 13px; }
   </style>
 </head>
 <body>
-  <div class="group">
-    <label class="row">
-      <input type="checkbox" id="enabled" aria-describedby="enabled-d">
-      <span class="text">
-        <span class="label"><strong>Use Domain Priority</strong></span>
-        <span class="hint" id="enabled-d">Promotes results and hides sections on Google Search</span>
+  <main>
+    <div class="power-card">
+      <button type="button" class="power" id="power" aria-pressed="true" aria-label="Domain Priority" aria-describedby="power-sub">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 3v8"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg>
+      </button>
+      <span class="power-text">
+        <span class="power-title" id="power-title">Domain Priority is on</span>
+        <span class="power-sub" id="power-sub">Works on Google Search</span>
       </span>
-    </label>
-  </div>
+    </div>
 
-  <div role="group" aria-labelledby="g-page">
-    <div class="ghead"><h2 id="g-page">Sections on this page</h2></div>
-    <div class="group" id="page-list"><div class="row empty">Checking…</div></div>
-    <p class="note" id="page-note">Checked sections are shown; unchecked ones are hidden. Point at one to see it on the page.</p>
-    <p class="edit-wrap">
-      <button type="button" class="btn" id="edit" disabled aria-describedby="edit-d">Edit layout on the page</button>
-      <span class="hint" id="edit-d">Shrinks the page so you can click sections to hide or show them</span>
-    </p>
-  </div>
+    <div id="lists">
+      <section aria-labelledby="g-domains">
+        <div class="ghead"><h2 id="g-domains">Moved to the top, in order</h2></div>
+        <div class="group">
+          <div id="domain-list"></div>
+          <button type="button" class="add-row" id="add-open">+ Add a domain</button>
+          <form id="add-form" hidden>
+            <input type="text" id="add-domain" placeholder="example.com" aria-label="Domain to add" aria-describedby="add-msg"
+                   spellcheck="false" autocomplete="off">
+            <button type="submit" class="small-btn">Add</button>
+            <button type="button" class="small-btn" id="add-cancel">Cancel</button>
+          </form>
+        </div>
+        <p class="add-msg" id="add-msg" role="status"></p>
+      </section>
 
-  <p class="foot"><button type="button" class="linkbtn" id="settings">All settings</button></p>
+      <section aria-labelledby="g-page">
+        <div class="ghead"><h2 id="g-page">Sections on this page</h2></div>
+        <div class="group" id="page-list"><div class="lrow empty">Checking…</div></div>
+      </section>
+    </div>
+  </main>
 
+  <footer>
+    <button type="button" class="btn" id="edit" disabled>Edit layout on the page</button>
+    <button type="button" class="linkbtn" id="settings">Settings</button>
+  </footer>
+
+  <p class="visually-hidden" id="announce" role="status"></p>
   <p class="saved" id="status" role="status"></p>
   <script src="popup.js"></script>
 </body>

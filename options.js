@@ -70,6 +70,10 @@ function parseDomains() {
   return [...new Set($('domains').value.split('\n').map(normalizeDomain).filter(Boolean))];
 }
 
+function domainsSave() {
+  return { domains: parseDomains() };
+}
+
 // Storage keeps the original "hide" map, so a checked (shown) box is hide: false.
 function readHide() {
   const hide = {};
@@ -136,18 +140,18 @@ document.addEventListener('change', e => {
 let typingTimer = null;
 $('domains').addEventListener('input', () => {
   clearTimeout(typingTimer);
-  typingTimer = setTimeout(() => save({ domains: parseDomains() }), 600);
+  typingTimer = setTimeout(() => save(domainsSave()), 600);
 });
 $('domains').addEventListener('change', () => {
   clearTimeout(typingTimer);
-  const domains = parseDomains();
-  $('domains').value = domains.join('\n');
-  save({ domains });
+  const values = domainsSave();
+  $('domains').value = values.domains.join('\n');
+  save(values);
 });
 
 // Don't lose a change made just before the tab closes.
 window.addEventListener('pagehide', () => {
-  if (typingTimer) { clearTimeout(typingTimer); pending.domains = parseDomains(); }
+  if (typingTimer) { clearTimeout(typingTimer); Object.assign(pending, domainsSave()); }
   if (Object.keys(pending).length) { clearTimeout(flushTimer); flush(); }
 });
 

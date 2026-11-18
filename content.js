@@ -568,6 +568,7 @@
 
   let lastHidden = [];
   let lastSections = [];       // every section found on the page, hidden or not
+  let lastPromoted = 0;        // preferred results on the page, for the popup's summary
   let lastReport = '';
   function report() {
     const msg = { type: 'dp-badge', enabled: settings.enabled, count: new Set(lastHidden).size };
@@ -593,6 +594,7 @@
       type: 'status',
       enabled: settings.enabled,
       onAllTab: onAllResultsTab(),
+      promoted: lastPromoted,
       sections: keys.map(k => ({ key: k, label: labelOf(k), hidden: !!settings.hide[k] })),
     };
   }
@@ -669,7 +671,7 @@
     restoreAll();
     if (!settings.enabled) {
       setEditing(false); updateZoom();
-      removePinned(); removeOverlay(); removeMarks(); promote(null, []); lastHidden = []; lastSections = [];
+      removePinned(); removeOverlay(); removeMarks(); promote(null, []); lastHidden = []; lastSections = []; lastPromoted = 0;
       report(); sendStatus(); return;
     }
     injectCss();
@@ -679,8 +681,8 @@
     lastSections = sections;
     lastHidden = sections.filter(s => !shown.includes(s)).map(s => s.key);
     report();
-    sendStatus();
     promoteAndPin();
+    sendStatus();             // after promotion, so the popup's "moved up" count is current
     applyPreview(false);
     renderHideButtons(shown); // after promotion, which moves blocks around
     updateZoom();             // after layout changes, so the fit is measured on the final layout
@@ -704,11 +706,13 @@
   }
 
   function promoteAndPin() {
+    lastPromoted = 0;
     const root = resultsRoot();
     if (!root) return;
 
     const cards = findCards(root);
     const preferred = cards.filter(c => c.rank >= 0);
+    lastPromoted = preferred.length;
 
     syncLabels(settings.highlight ? preferred : []);
 

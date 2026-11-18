@@ -16,7 +16,7 @@
 
   const SECTIONS = globalThis.DP_SECTIONS || [];
   const DEFAULT_HIDE = Object.fromEntries(SECTIONS.map(s => [s.key, !!s.hide]));
-  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, hoverPreview: true, sitelinks: true, hide: DEFAULT_HIDE };
+  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, hide: DEFAULT_HIDE };
   const PINNED = 'data-dp-pinned';     // our injected fallback card
   const HIDDEN = 'data-dp-hidden';     // section blocks we hide (value = section key)
   const PREVIEW = 'data-dp-preview';   // blocks faded while the popup row for them is hovered
@@ -118,7 +118,7 @@
   // what a popup checkbox would remove or bring back. Fading plus the dashed
   // outline mark it, so the cue doesn't rely on colour.
   //
-  // While the popup is open with hover preview on, <body> is scaled down so
+  // While the popup is open, <body> is scaled down so
   // the whole page fits in the window: previewing a section then never
   // scrolls the page, and showing a hidden one never pushes content out of
   // view. A transform is visual only, so Google's layout doesn't reflow.
@@ -623,7 +623,7 @@
 
   function updateZoom() {
     const html = document.documentElement;
-    const want = settings.enabled && (editing || (ports.size > 0 && settings.hoverPreview));
+    const want = settings.enabled && (editing || ports.size > 0);
     if (want) {
       if (!zoomed) savedScroll = { x: window.scrollX, y: window.scrollY };
       html.style.setProperty('--dp-zoom', '1');
@@ -1003,7 +1003,6 @@
       fallback: raw.fallback ?? DEFAULTS.fallback,
       inlineButtons: raw.inlineButtons ?? DEFAULTS.inlineButtons,
       sitelinks: raw.sitelinks ?? DEFAULTS.sitelinks,
-      hoverPreview: raw.hoverPreview ?? DEFAULTS.hoverPreview,
       hide: { ...DEFAULT_HIDE, ...(raw.hide || {}) },
     };
   }

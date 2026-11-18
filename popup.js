@@ -24,10 +24,8 @@ function emptyRow(text) {
 
 let port = null;
 let rendered = '';   // the section keys currently drawn, to avoid rebuilding under the pointer
-let hoverPreview = true;
 
 function preview(key) {
-  if (key && !hoverPreview) return;
   if (port) { try { port.postMessage({ type: 'preview', key }); } catch { /* tab closed */ } }
 }
 
@@ -106,20 +104,15 @@ async function connect() {
 
 // ---------- popup settings ----------
 
-chrome.storage.sync.get({ enabled: true, hoverPreview: true }, s => {
+chrome.storage.sync.get({ enabled: true }, s => {
   $('enabled').checked = s.enabled;
-  $('hoverPreview').checked = hoverPreview = s.hoverPreview;
 });
+
+// Hover preview used to be optional; it's always on now. Drop the old setting.
+chrome.storage.sync.remove('hoverPreview');
 
 $('enabled').addEventListener('change', async e => {
   await chrome.storage.sync.set({ enabled: e.target.checked });
-  flashSaved();
-});
-
-$('hoverPreview').addEventListener('change', async e => {
-  hoverPreview = e.target.checked;
-  if (!hoverPreview) preview(null);
-  await chrome.storage.sync.set({ hoverPreview });
   flashSaved();
 });
 

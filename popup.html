@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Domain Priority</title>
+  <link rel="stylesheet" href="ui.css">
+  <style>
+    body { width: 320px; box-sizing: border-box; max-width: none; margin: 0; padding: 12px 12px 14px; overflow-x: hidden; }
+    .ghead { margin: 14px 4px 6px; }
+    .empty { color: var(--muted); font-size: 13px; }
+    .foot { margin: 12px 4px 0; }
+    .spaced { margin-top: 12px; }
+    .edit-wrap { margin: 10px 4px 0; }
+    .edit-wrap .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .btn { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card);
+           color: var(--text); cursor: pointer; }
+    .btn:hover:not(:disabled) { background: var(--hover); }
+    .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .btn:disabled { opacity: .5; cursor: default; }
+  </style>
+</head>
+<body>
+  <div class="group">
+    <label class="row">
+      <input type="checkbox" id="enabled" aria-describedby="enabled-d">
+      <span class="text">
+        <span class="label"><strong>Use Domain Priority</strong></span>
+        <span class="hint" id="enabled-d">Promotes results and hides sections on Google Search</span>
+      </span>
+    </label>
+  </div>
+
+  <div role="group" aria-labelledby="g-page">
+    <div class="ghead"><h2 id="g-page">Sections on this page</h2></div>
+    <div class="group" id="page-list"><div class="row empty">Checking…</div></div>
+    <p class="note" id="page-note">Checked sections are shown; unchecked ones are hidden.</p>
+    <p class="edit-wrap">
+      <button type="button" class="btn" id="edit" disabled aria-describedby="edit-d">Edit layout on the page</button>
+      <span class="hint" id="edit-d">Shrinks the page so you can click sections to hide or show them</span>
+    </p>
+  </div>
+
+  <div class="group spaced">
+    <label class="row">
+      <input type="checkbox" id="hoverPreview" aria-describedby="hover-d">
+      <span class="text">
+        <span class="label">Preview on hover</span>
+        <span class="hint" id="hover-d">Pointing at a section above fades it on the page, so you can see what unchecking it would remove or checking it would bring back</span>
+      </span>
+    </label>
+  </div>
+
+  <p class="foot"><button type="button" class="linkbtn" id="settings">All settings</button></p>
+
+  <p class="saved" id="status" role="status"></p>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+/* Shared look for the settings page and the toolbar popup. */
+:root {
+  color-scheme: light dark;
+  --bg: #f6f7f9; --card: #fff; --line: #dcdfe4; --text: #1f2328; --muted: #5d636b; --hover: #f0f2f5;
+  --accent: #2f5fc4;
+  /* Checkbox fill. Chrome picks a contrasting tick colour for it. */
+  --check: #2f5fc4;
+  --error: #b3261e; --error-bg: #fdecea;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #17191c; --card: #212428; --line: #373b41; --text: #e6e8eb; --muted: #a2a8b0; --hover: #2a2e33;
+          --accent: #7aa5ff; --check: #4277e0; --error: #ffb4ab; --error-bg: #3b1d1b; }
+}
+body { font: 14px/1.5 system-ui, sans-serif; max-width: 600px; margin: 32px auto; padding: 0 16px 48px; background: var(--bg); color: var(--text); }
+h1 { font-size: 20px; margin: 0 0 4px; }
+p.sub { margin: 0 0 8px; color: var(--muted); }
+.ghead { display: flex; align-items: baseline; gap: 12px; margin: 26px 4px 6px; }
+h2 { flex: 1; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0; }
+.note { font-size: 12px; color: var(--muted); margin: 6px 4px 0; }
+code { font-size: 12px; }
+
+/* Grouped list: one bordered box per section, hairline between rows. */
+.group { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 14px; }
+.row + .row { border-top: 1px solid var(--line); }
+.row .text { flex: 1; min-width: 0; }
+.row .label { display: block; }
+.row .hint { display: block; font-size: 12px; color: var(--muted); }
+.row.stack { display: block; }
+/* The whole row is the click target for its checkbox. */
+label.row { cursor: pointer; }
+label.row:hover { background: var(--hover); }
+
+textarea { width: 100%; box-sizing: border-box; min-height: 130px; margin: 6px 0 4px; font: 13px/1.5 ui-monospace, monospace; padding: 8px;
+           background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; }
+
+/* Checkbox at the start of each row, lined up with the label's first line.
+   The tick (or the dash for "some") shows the state, not the colour. */
+input[type=checkbox] { flex: none; width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--check); cursor: pointer; }
+input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Group heading with an all / some / none checkbox for the rows below it. */
+.ghead.check { align-items: center; margin-left: 15px; }
+.ghead.check input { margin: 0; }
+.ghead.check h2 label { cursor: pointer; }
+
+.master { margin-top: 18px; }
+.master .label { font-weight: 600; }
+/* When the extension is off the rest stays editable but is visibly set aside. */
+body.off #settings { opacity: .55; }
+
+/* Advanced options start collapsed (progressive disclosure). */
+details#advanced { margin-top: 26px; }
+details#advanced > summary { cursor: pointer; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+                             color: var(--muted); margin: 0 4px 6px; width: max-content; }
+.linkbtn { background: none; border: none; padding: 2px 0; font: inherit; font-size: 12px; color: var(--accent); text-decoration: underline; cursor: pointer; }
+.ghead .linkbtn { text-transform: none; letter-spacing: 0; }
+
+/* Auto-save confirmation: brief, pinned bottom-right so it's seen anywhere on the page. */
+.saved { position: fixed; right: 16px; bottom: 16px; margin: 0; padding: 6px 12px; border-radius: 6px; font-size: 13px;
+         background: var(--card); border: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.15);
+         opacity: 0; transition: opacity .2s; pointer-events: none; }
+.saved.show { opacity: 1; }
+/* Save errors stay until a later save succeeds or they're dismissed. */
+.error { position: fixed; left: 16px; right: 16px; bottom: 16px; max-width: 568px; margin: 0 auto; padding: 10px 14px;
+         display: flex; gap: 12px; align-items: flex-start; border-radius: 8px; font-size: 13px;
+         background: var(--error-bg); color: var(--error); border: 1px solid currentColor; }
+.error[hidden] { display: none; }
+.error .msg { flex: 1; }
+.error button { background: none; border: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; padding: 0; }

@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Domain Priority for Google",
+  "version": "1.1.0",
+  "description": "Moves results from domains you choose (e.g. Wikipedia) to the top of Google Search, and hides the sections you don’t want, such as ads.",
+  "permissions": [
+    "storage"
+  ],
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Domain Priority",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.google.com/search*"
+      ],
+      "js": [
+        "sections.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

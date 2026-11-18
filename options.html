@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Domain Priority settings</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <h1>Domain Priority</h1>
+  <p class="sub">Move results from domains you trust to the top of Google Search, and choose which sections Google shows. Changes save automatically.</p>
+
+  <div class="group master">
+    <label class="row">
+      <input type="checkbox" id="enabled" aria-describedby="enabled-d">
+      <span class="text">
+        <span class="label">Use Domain Priority on Google Search</span>
+        <span class="hint" id="enabled-d">When unchecked, results and sections are left exactly as Google shows them</span>
+      </span>
+    </label>
+  </div>
+
+  <div id="settings">
+    <div role="group" aria-labelledby="g-domains">
+      <div class="ghead"><h2 id="g-domains">Preferred domains</h2></div>
+      <div class="group">
+        <div class="row stack">
+          <label class="label" for="domains">Highest priority first, one per line</label>
+          <textarea id="domains" spellcheck="false" placeholder="wikipedia.org" aria-describedby="domains-d"></textarea>
+          <span class="hint" id="domains-d">A domain also matches its subdomains, so <code>wikipedia.org</code> covers en.wikipedia.org, de.m.wikipedia.org, etc.</span>
+        </div>
+      </div>
+    </div>
+
+    <div role="group" aria-labelledby="g-promoted">
+      <div class="ghead"><h2 id="g-promoted">Results and buttons</h2></div>
+      <div class="group">
+        <label class="row">
+          <input type="checkbox" id="sitelinks" aria-describedby="sitelinks-d">
+          <span class="text">
+            <span class="label">Show site links under results</span>
+            <span class="hint" id="sitelinks-d">The list of a site’s pages under its result, such as “Login” and “Pricing” under github.com, with “More results from …”</span>
+          </span>
+        </label>
+        <label class="row">
+          <input type="checkbox" id="highlight" aria-describedby="highlight-d">
+          <span class="text">
+            <span class="label">Mark promoted results</span>
+            <span class="hint" id="highlight-d">Adds “★ Preferred source” after the site name</span>
+          </span>
+        </label>
+        <label class="row">
+          <input type="checkbox" id="inlineButtons" aria-describedby="inline-d">
+          <span class="text">
+            <span class="label">Show “Hide” buttons on Google</span>
+            <span class="hint" id="inline-d">A small button on each section of the results page hides that section type everywhere</span>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <p class="note" id="sections-d">Checked sections are shown on Google; unchecked ones are hidden. Each group’s heading checkbox shows or hides the whole group.</p>
+    <div id="sections"></div>
+    <p class="note">Sections are recognised by their English headings, so this works when Google’s interface language is English. <button class="linkbtn" id="showall" type="button">Show all sections</button></p>
+
+    <details id="advanced">
+      <summary id="g-advanced">Advanced</summary>
+      <div role="group" aria-labelledby="g-advanced">
+      <div class="group">
+        <label class="row">
+          <input type="checkbox" id="fallback" aria-describedby="fallback-d">
+          <span class="text">
+            <span class="label">Pin a result when none is on the first page</span>
+            <span class="hint" id="fallback-d">Runs a background <code>site:</code> search for the top domain. This doubles the searches sent to Google for those queries; heavy use can trigger CAPTCHAs, and the extension stops trying in that tab if it sees one.</span>
+          </span>
+        </label>
+      </div>
+      </div>
+    </details>
+  </div>
+
+  <p class="saved" id="status" role="status"></p>
+  <div class="error" id="error" role="alert" hidden><span class="msg" id="error-msg"></span><button type="button" id="error-close">Dismiss</button></div>
+
+  <script src="sections.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

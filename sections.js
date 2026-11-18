@@ -28,6 +28,11 @@ globalThis.DP_GROUPS = [
 globalThis.DP_SECTIONS = [
   { key: 'ads', group: 'ads', label: 'Sponsored results (ads)', hint: 'Ad blocks at the top and bottom of the page',
     region: ['Ads'], match: [/^sponsored( results?| products?)?$/], hide: true },
+  // Google's "commercial search suggestions": searches picked to lead to
+  // advertisers' offers. The links are new Google searches, not ads, and
+  // carry no "Sponsored" label (Search Engine Roundtable, 2025).
+  { key: 'relatedProducts', group: 'ads', label: 'Find related products & services', hint: 'Searches Google suggests to lead you to advertisers’ offers',
+    match: [/^find related products (&|and) services$/], hide: true },
   { key: 'aiOverview', group: 'ads', label: 'AI Overview', hint: 'Including the “Thinking…” placeholder while it loads',
     match: [/^ai overview$/, /^thinking/], minor: true },
   { key: 'aiMode', group: 'ads', label: 'Ask anything in AI Mode', hint: 'The AI Mode prompt box',

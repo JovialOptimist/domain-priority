@@ -114,19 +114,18 @@
     for (const el of document.querySelectorAll('[' + SITELINKS + ']')) el.removeAttribute(SITELINKS);
   }
 
-  // A previewed block is faded (and a hidden one shown faded) so you can see
-  // what a popup checkbox would remove or bring back. Fading plus the dashed
-  // outline mark it, so the cue doesn't rely on colour.
+  // Pointing at a section in the popup outlines it where it is (a thick
+  // outline, so it's a shape cue, not only colour). The page never moves
+  // or resizes for that; a label at the window's edge covers sections that
+  // are off screen or hidden.
   //
-  // While the popup is open, <body> is scaled down so
-  // the whole page fits in the window: previewing a section then never
-  // scrolls the page, and showing a hidden one never pushes content out of
-  // view. A transform is visual only, so Google's layout doesn't reflow.
-  const CSS = 'html:not([' + MEASURE + ']):not([' + EDITING + ']) [' + HIDDEN + ']:not([' + PREVIEW + ']){display:none!important}' +
-    // In edit mode hidden blocks stay in place as faded ghosts; the overlay adds stripes and a "Hidden" tag.
+  // In "Edit layout" mode <body> is scaled down so the whole page fits in
+  // the window. A transform is visual only, so Google's layout doesn't reflow.
+  const CSS = 'html:not([' + MEASURE + ']):not([' + EDITING + ']) [' + HIDDEN + ']{display:none!important}' +
+    // In edit mode hidden blocks stay in place as faded ghosts; the overlay adds a "Hidden" tag.
     'html[' + EDITING + '] [' + HIDDEN + ']{opacity:.35!important}' +
     '[' + SITELINKS + ']{display:none!important}' +
-    '[' + PREVIEW + ']{opacity:.4!important;outline:2px dashed #8ab4f8!important;outline-offset:4px;border-radius:4px}' +
+    '[' + PREVIEW + ']{outline:3px solid #1a73e8!important;outline-offset:6px;border-radius:8px}' +
     'html[' + ZOOMED + ']{overflow:hidden!important}' +
     'html[' + ZOOMED + '] body{transform:scale(var(--dp-zoom,1));transform-origin:top center}';
 
@@ -342,6 +341,10 @@
       '.act{display:none;font-weight:normal}',
       '.e:hover .act,.e:focus-visible .act{display:inline}',
       '.t.eb{bottom:24px}',
+      // Edge label for the section pointed at in the popup when it's off screen or hidden.
+      '.p{position:fixed;left:50%;transform:translateX(-50%);font:14px/1.4 Arial,sans-serif;padding:8px 14px;border-radius:8px;',
+      ' background:#303134;color:#e8eaed;box-shadow:0 2px 10px rgba(0,0,0,.3);white-space:nowrap;pointer-events:none}',
+      '.p.top{top:16px}.p.bottom{bottom:24px}.p[hidden]{display:none}',
       '@media (prefers-color-scheme:dark){.b{background:#303134;color:#e8eaed;border-color:#8e918f}',
       ' .e{border-color:#8ab4f8;background:rgba(138,180,248,.08)} .e:hover,.e:focus-visible{background:rgba(138,180,248,.18)}',
       ' .tag{background:#8ab4f8;color:#202124}',
@@ -365,9 +368,12 @@
     done.textContent = 'Done (Esc)';
     done.addEventListener('click', () => setEditing(false));
     bar.append(barMsg, done);
-    root.append(style, layer, edit, toast, bar);
+    const peek = document.createElement('div');
+    peek.className = 'p';
+    peek.hidden = true;
+    root.append(style, layer, edit, toast, bar, peek);
     document.documentElement.appendChild(host);
-    overlay = { host, root, layer, edit, toast, bar };
+    overlay = { host, root, layer, edit, toast, bar, peek };
     return overlay;
   }
 
@@ -608,24 +614,50 @@
     for (const port of ports) { try { port.postMessage(msg); } catch { ports.delete(port); } }
   }
 
-  function applyPreview(scroll) {
+  // The section being pointed at in the popup: outlined in place when it's
+  // on screen; otherwise a label at the top or bottom edge says where it is,
+  // or that it's hidden. Nothing scrolls, resizes or reappears.
+  function applyPreview() {
     for (const el of document.querySelectorAll('[' + PREVIEW + ']')) el.removeAttribute(PREVIEW);
-    if (!previewKey || !settings.enabled) return;
+    showPeek(null);
+    if (!previewKey || !settings.enabled || editing) return;
     const blocks = lastSections.filter(s => s.key === previewKey).map(s => s.block);
+    if (!blocks.length) return;
+    const label = labelOf(previewKey);
+    if (settings.hide[previewKey]) return showPeek('top', label + ' is hidden on this page');
     for (const b of blocks) b.setAttribute(PREVIEW, '');
-    if (scroll && !zoomed && blocks[0]) blocks[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    positionButtons();
+    const rects = blocks.map(b => b.getBoundingClientRect()).filter(r => r.width && r.height);
+    if (!rects.length) return;
+    const top = Math.min(...rects.map(r => r.top));
+    const bottom = Math.max(...rects.map(r => r.bottom));
+    if (bottom < 0) showPeek('top', '↑ ' + label + ' is above');
+    else if (top > window.innerHeight) showPeek('bottom', '↓ ' + label + ' is below');
   }
 
-  // Shrink the page to fit the window while the popup is open with hover
-  // preview on. The fit is measured with hidden sections shown, so previewing
-  // one never makes the page taller than the window.
+  // edge: 'top' | 'bottom' | null (hide).
+  function showPeek(edge, text) {
+    if (!edge) { if (overlay) overlay.peek.hidden = true; return; }
+    const { peek } = ensureOverlay();
+    peek.className = 'p ' + edge;
+    peek.textContent = text;
+    peek.hidden = false;
+  }
+
+  // Scrolling while pointing at a section can bring it on or off screen.
+  let peekFrame = 0;
+  window.addEventListener('scroll', () => {
+    if (!previewKey || peekFrame) return;
+    peekFrame = requestAnimationFrame(() => { peekFrame = 0; applyPreview(); });
+  }, { passive: true });
+
+  // Shrink the page to fit the window in "Edit layout" mode. The fit is
+  // measured with hidden sections shown, since edit mode shows them as ghosts.
   let zoomed = false;
   let savedScroll = null;
 
   function updateZoom() {
     const html = document.documentElement;
-    const want = settings.enabled && (editing || ports.size > 0);
+    const want = settings.enabled && editing;
     if (want) {
       if (!zoomed) savedScroll = { x: window.scrollX, y: window.scrollY };
       html.style.setProperty('--dp-zoom', '1');
@@ -652,15 +684,15 @@
     ports.add(port);
     port.onMessage.addListener(msg => {
       if (msg.type === 'status') sendStatus(true);
-      if (msg.type === 'preview') { previewKey = msg.key || null; applyPreview(true); }
+      if (msg.type === 'preview') { previewKey = msg.key || null; applyPreview(); }
       if (msg.type === 'edit') {
-        previewKey = null; applyPreview(false); setEditing(true);
+        previewKey = null; applyPreview(); setEditing(true);
         try { port.postMessage({ type: 'editing' }); } catch { /* popup already gone */ }
       }
     });
     port.onDisconnect.addListener(() => {
       ports.delete(port);
-      if (!ports.size) { previewKey = null; applyPreview(false); updateZoom(); }
+      if (!ports.size) { previewKey = null; applyPreview(); updateZoom(); }
     });
     updateZoom();
   });
@@ -683,7 +715,7 @@
     report();
     promoteAndPin();
     sendStatus();             // after promotion, so the popup's "moved up" count is current
-    applyPreview(false);
+    applyPreview();
     renderHideButtons(shown); // after promotion, which moves blocks around
     updateZoom();             // after layout changes, so the fit is measured on the final layout
     renderEdit();
@@ -1037,6 +1069,16 @@
   // from the page's scripts to this one.)
   const devSend = msg => { try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch { /* already reloaded */ } };
   window.addEventListener('dp-dev-reload', () => devSend({ type: 'dp-dev-reload' }));
+  //   document.documentElement.dataset.dpDevPreview = 'aiOverview';
+  //   window.dispatchEvent(new Event('dp-dev-preview'))  act as if the popup points at a section ('' = none)
+  if (!('update_url' in chrome.runtime.getManifest())) {
+    window.addEventListener('dp-dev-preview', () => {
+      const html = document.documentElement;
+      previewKey = html.dataset.dpDevPreview || null;
+      delete html.dataset.dpDevPreview;
+      applyPreview();
+    });
+  }
   window.addEventListener('dp-dev-set', () => {
     const html = document.documentElement;
     let values = null;

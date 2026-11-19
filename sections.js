@@ -34,7 +34,10 @@ globalThis.DP_SECTIONS = [
   { key: 'relatedProducts', group: 'ads', label: 'Find related products & services', hint: 'Searches Google suggests to lead you to advertisers’ offers',
     match: [/^find related products (&|and) services$/], hide: true },
   { key: 'aiOverview', group: 'ads', label: 'AI Overview', hint: 'Including the “Thinking…” placeholder while it loads',
-    match: [/^ai overview$/, /^thinking/], minor: true },
+    // On some topic pages ("dune part two") the "AI Overview" heading sits in
+    // a strip above the results and the AI text is a separate box inside
+    // them. That box carries Google's hidden AI Mode headings instead.
+    match: [/^ai overview$/, /^thinking/, /^ai mode replied:?$/, /^ai mode reply for\b/], minor: true },
   { key: 'aiMode', group: 'ads', label: 'Ask anything in AI Mode', hint: 'The AI Mode prompt box',
     match: [/^ask anything in ai mode$/], minor: true },
 
@@ -57,10 +60,12 @@ globalThis.DP_SECTIONS = [
   { key: 'videos', group: 'media', label: 'Videos and short videos',
     match: [/^videos$/, /^short videos$/] },
 
-  { key: 'products', group: 'shopping', label: 'Popular products', hint: 'Unpaid shopping listings',
-    match: [/^popular products$/, /^products$/] },
+  { key: 'products', group: 'shopping', label: 'Shopping listings', hint: 'Unpaid product listings: “Popular products”, “More products”, “In stores nearby”',
+    match: [/^popular products$/, /^products$/, /^more products$/, /^in stores nearby$/] },
   { key: 'local', group: 'shopping', label: 'Places and maps', hint: 'Local results, store locations, top sights, hotels',
     match: [/^places$/, /^locations$/, /^local results$/, /^more locations$/, /^top sights in\b/, /^hotels \|/, /^more hotels$/] },
+  { key: 'showtimes', group: 'shopping', label: 'Showtimes', hint: 'Film times at nearby cinemas',
+    match: [/^showtimes$/, /^showtimes (at|for)\b/] },
   { key: 'flights', group: 'shopping', label: 'Flights',
     match: [/^search flights$/, /^flight status$/, /^flights to\b/] },
   { key: 'events', group: 'shopping', label: 'Events',
@@ -87,6 +92,8 @@ globalThis.DP_SECTIONS = [
     kp: true },
   { key: 'carousels', group: 'entities', label: 'Topic carousels', hint: 'Movies, TV shows, songs, albums, books, podcasts',
     match: [/^movies$/, /^tv shows$/, /^movies and shows$/, /^songs$/, /^albums$/, /^books$/, /^podcasts$/, /^episodes$/] },
+  { key: 'cast', group: 'entities', label: 'Cast and crew', hint: 'The people in a film or TV show',
+    match: [/^cast$/, /^cast (and|&) crew$/] },
   { key: 'scholarly', group: 'entities', label: 'Scholarly articles',
     match: [/^scholarly articles for\b/] },
 ];

@@ -1115,6 +1115,8 @@
   window.addEventListener('dp-dev-reload', () => devSend({ type: 'dp-dev-reload' }));
   //   document.documentElement.dataset.dpDevPreview = 'aiOverview';
   //   window.dispatchEvent(new Event('dp-dev-preview'))  act as if the popup points at a section ('' = none)
+  //   window.dispatchEvent(new Event('dp-dev-report'))   writes a JSON audit of this page to
+  //   document.documentElement.dataset.dpDevReport (see devReport below)
   if (!('update_url' in chrome.runtime.getManifest())) {
     window.addEventListener('dp-dev-preview', () => {
       const html = document.documentElement;
@@ -1122,6 +1124,53 @@
       delete html.dataset.dpDevPreview;
       applyPreview();
     });
+    window.addEventListener('dp-dev-report', () => {
+      document.documentElement.dataset.dpDevReport = JSON.stringify(devReport());
+    });
+  }
+
+  // A survey of the page for testing: what the extension recognised, how big
+  // each section's box is (and whether it swallowed results or the pager),
+  // which headings it didn't recognise, and what promotion did.
+  function devReport() {
+    const text = el => el.textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const root = resultsRoot();
+    const scope = document.getElementById('rcnt') || document.getElementById('main') || document.body;
+    const cards = root ? findCards(root) : [];
+    const known = new Set(sectionHeadings(scope).map(h => h.el));
+    const blocks = lastSections.map(s => s.block);
+    const candidates = [...scope.querySelectorAll('h2, h3, [role="heading"][aria-level="2"], [role="region"][aria-label]')]
+      .filter(el => !el.closest('a, [role="dialog"], g-menu') && !(Number(el.getAttribute('aria-level')) > 3))
+      .filter(el => !el.parentElement.closest('h2, h3, [role="heading"]'));
+    const unknown = candidates
+      .filter(el => !known.has(el) && !blocks.some(b => b.contains(el)) && !cards.some(c => c.card.contains(el)))
+      .map(el => ({ text: el.getAttribute('aria-label') || text(el), tag: el.tagName.toLowerCase(), visible: vis(el), el }))
+      // Not sections: the pager's "Next"/"Previous", and Google's location
+      // line above local results ("Seattle, WA ∙ Choose area").
+      .filter(u => u.text && !/^(next|previous)$/i.test(u.text) &&
+        !/choose area$/i.test((u.el.parentElement?.parentElement?.textContent || '').trim()))
+      .map(({ el, ...u }) => u);
+    let markers = 0;
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
+    while (walk.nextNode()) if (/^dp: promoted/.test(walk.currentNode.data)) markers++;
+    return {
+      onAllTab: onAllResultsTab(),
+      enabled: settings.enabled,
+      sections: lastSections.map(s => ({
+        key: s.key, hiddenSetting: !!settings.hide[s.key], visible: vis(s.block),
+        height: Math.round(s.block.getBoundingClientRect().height) || null,
+        resultsInside: mainTitles(s.block).length, pagerInside: hasPager(s.block), text: text(s.block),
+      })),
+      unknownHeadings: unknown,
+      cards: cards.length,
+      gotoLinks: root ? root.querySelectorAll('a[href^="/goto?"]').length : 0,
+      firstHosts: cards.filter(c => vis(c.card)).slice(0, 6).map(c => c.host.replace(/^www\./, '') + (c.rank >= 0 ? ' ★' : '')),
+      preferredOnPage: lastPromoted, moved: markers,
+      labels: document.querySelectorAll('[' + LABEL + ']').length,
+      sitelinksHidden: document.querySelectorAll('[' + SITELINKS + ']').length,
+      zoomed,
+    };
   }
   window.addEventListener('dp-dev-set', () => {
     const html = document.documentElement;

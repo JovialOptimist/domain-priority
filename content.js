@@ -16,7 +16,7 @@
 
   const SECTIONS = globalThis.DP_SECTIONS || [];
   const DEFAULT_HIDE = Object.fromEntries(SECTIONS.map(s => [s.key, !!s.hide]));
-  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, hide: DEFAULT_HIDE };
+  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
   const PINNED = 'data-dp-pinned';     // our injected fallback card
   const HIDDEN = 'data-dp-hidden';     // section blocks we hide (value = section key)
   const PREVIEW = 'data-dp-preview';   // blocks faded while the popup row for them is hovered
@@ -24,6 +24,7 @@
   const MEASURE = 'data-dp-measure';   // on <html> for a moment while measuring with hidden blocks shown
   const EDITING = 'data-dp-editing';   // on <html> while in "Edit layout" mode
   const SITELINKS = 'data-dp-sitelinks'; // a result's list of site links, when hidden
+  const CHIPS = 'data-dp-chips';       // a result's row of link chips, when hidden
   const LABEL = 'data-dp-label';       // our "★ Preferred source" label in a promoted result's site-name line
   const EXCLUDE = 'g-scrolling-carousel, [aria-roledescription="carousel"], [' + PINNED + ']';
 
@@ -112,6 +113,7 @@
     for (const el of document.querySelectorAll('[' + HIDDEN + ']')) el.removeAttribute(HIDDEN);
     for (const el of document.querySelectorAll('[' + PREVIEW + ']')) el.removeAttribute(PREVIEW);
     for (const el of document.querySelectorAll('[' + SITELINKS + ']')) el.removeAttribute(SITELINKS);
+    for (const el of document.querySelectorAll('[' + CHIPS + ']')) el.removeAttribute(CHIPS);
   }
 
   // Pointing at a section in the popup outlines it where it is (a thick
@@ -124,7 +126,7 @@
   const CSS = 'html:not([' + MEASURE + ']):not([' + EDITING + ']) [' + HIDDEN + ']{display:none!important}' +
     // In edit mode hidden blocks stay in place as faded ghosts; the overlay adds a "Hidden" tag.
     'html[' + EDITING + '] [' + HIDDEN + ']{opacity:.35!important}' +
-    '[' + SITELINKS + ']{display:none!important}' +
+    '[' + SITELINKS + '],[' + CHIPS + ']{display:none!important}' +
     '[' + PREVIEW + ']{outline:3px solid #1a73e8!important;outline-offset:6px;border-radius:8px}' +
     'html[' + ZOOMED + ']{overflow:hidden!important}' +
     'html[' + ZOOMED + '] body{transform:scale(var(--dp-zoom,1));transform-origin:top center}';
@@ -155,10 +157,15 @@
     return el.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
   }
 
-  // Every known section heading on the page, as { el, key }.
+  // Every known section heading on the page, as { el, key }. Level-3 role
+  // headings count too: the panel on the right nests its own "People also
+  // search for" as one (search "sounders"). Only known heading texts match,
+  // so other level-3 headings ("Main Cast" in an AI Overview) are ignored.
+  const HEADING_SEL = 'h2, h3, [role="heading"][aria-level="2"], [role="heading"][aria-level="3"]';
+
   function sectionHeadings(scope) {
     const found = [];
-    for (const el of scope.querySelectorAll('h2, h3, [role="heading"][aria-level="2"]')) {
+    for (const el of scope.querySelectorAll(HEADING_SEL)) {
       if (el.closest('a, [role="dialog"], g-menu') || el.parentElement.closest('h2, h3, [role="heading"]')) continue;
       // Sitelinks under a result ("Roster", "News") are <h3 aria-level="4">: not sections.
       if (Number(el.getAttribute('aria-level')) > 3) continue;
@@ -217,7 +224,11 @@
   }
 
   // Knowledge panel: blocks beside or above the main column that carry
-  // Google's entity attributes and no other known section heading.
+  // Google's entity attributes and no other known section heading. A level-3
+  // heading inside one ("People also search for" on "eiffel tower") is part
+  // of the panel, not a reason to leave it out.
+  const isLevel3 = el => el.getAttribute('aria-level') === '3';
+
   function knowledgePanelBlocks(heads, center) {
     const out = [];
     const candidates = [];
@@ -229,7 +240,7 @@
     if (rhs) candidates.push(...rhs.children);
     for (const c of candidates) {
       if (!c.querySelector('[data-attrid], [data-kpid]')) continue;
-      if (heads.some(h => c.contains(h.el))) continue;
+      if (heads.some(h => c.contains(h.el) && !isLevel3(h.el))) continue;
       out.push(c);
     }
     return out;
@@ -252,12 +263,15 @@
     const scope = document.getElementById('rcnt') || document.getElementById('main') || document.body;
     const center = document.getElementById('center_col');
     const heads = sectionHeadings(scope);
+    const panels = knowledgePanelBlocks(heads, center);
     const out = [];
     const seen = new Set();
     // Major sections first, so minor headings inside them can be skipped.
     const ordered = [...heads.filter(h => !MINOR.has(h.key)), ...heads.filter(h => MINOR.has(h.key))];
     for (const h of ordered) {
       if (h.key === 'web') continue;
+      // Level-3 headings inside the knowledge panel go with the panel.
+      if (isLevel3(h.el) && panels.some(p => p.contains(h.el))) continue;
       const nested = MINOR.has(h.key) && out.some(s => s.block.contains(h.el));
       const block = sectionBlock(h.el, h.key, heads, center, nested);
       // A minor heading inside another section (the AI Mode box at the end of
@@ -278,7 +292,7 @@
     }
     // Keep page order (for the on-page buttons and the popup list).
     out.sort((a, b) => a.block.compareDocumentPosition(b.block) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1);
-    for (const block of knowledgePanelBlocks(heads, center)) {
+    for (const block of panels) {
       if (!seen.has(block)) out.push({ key: 'knowledgePanel', block });
     }
     return out;
@@ -743,7 +757,9 @@
 
   // ---------- main pass ----------
 
+  let applyRuns = 0;          // for the development report: has the page been handled yet?
   function apply() {
+    applyRuns++;
     restoreAll();
     if (!settings.enabled) {
       setEditing(false); updateZoom();
@@ -754,6 +770,7 @@
     const sections = collectSections();
     const shown = hideSections(sections);
     if (!settings.sitelinks) hideSitelinks();
+    if (!settings.chips) hideChips();
     lastSections = sections;
     lastHidden = sections.filter(s => !shown.includes(s)).map(s => s.key);
     report();
@@ -778,6 +795,22 @@
       let list = h;
       while (list.parentElement && list.parentElement !== root && !mainTitles(list.parentElement).length) list = list.parentElement;
       if (list !== h) list.setAttribute(SITELINKS, '');
+    }
+  }
+
+  // Link chips: a row of small links under a result, outside its title link
+  // ("Markets", "Research & Tools" under Yahoo Finance; "English",
+  // "Deutsch" under wikipedia.org). Google builds them as a role="list" of
+  // links, unlike the site links above, which have their own headings.
+  function hideChips() {
+    const root = resultsRoot();
+    if (!root) return;
+    for (const c of findCards(root)) {
+      for (const list of c.card.querySelectorAll('[role="list"], ul')) {
+        if (list.contains(c.link) || list.querySelector('h3')) continue;
+        const links = list.querySelectorAll('a');
+        if (links.length >= 2 && [...links].every(a => a.textContent.trim().length <= 40)) list.setAttribute(CHIPS, '');
+      }
     }
   }
 
@@ -1083,6 +1116,7 @@
       fallback: raw.fallback ?? DEFAULTS.fallback,
       inlineButtons: raw.inlineButtons ?? DEFAULTS.inlineButtons,
       sitelinks: raw.sitelinks ?? DEFAULTS.sitelinks,
+      chips: raw.chips ?? DEFAULTS.chips,
       hide: { ...DEFAULT_HIDE, ...(raw.hide || {}) },
     };
   }
@@ -1140,7 +1174,7 @@
     const cards = root ? findCards(root) : [];
     const known = new Set(sectionHeadings(scope).map(h => h.el));
     const blocks = lastSections.map(s => s.block);
-    const candidates = [...scope.querySelectorAll('h2, h3, [role="heading"][aria-level="2"], [role="region"][aria-label]')]
+    const candidates = [...scope.querySelectorAll(HEADING_SEL + ', [role="region"][aria-label]')]
       .filter(el => !el.closest('a, [role="dialog"], g-menu') && !(Number(el.getAttribute('aria-level')) > 3))
       .filter(el => !el.parentElement.closest('h2, h3, [role="heading"]'));
     const unknown = candidates
@@ -1155,12 +1189,17 @@
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_COMMENT);
     while (walk.nextNode()) if (/^dp: promoted/.test(walk.currentNode.data)) markers++;
     return {
+      applyRuns,
       onAllTab: onAllResultsTab(),
       enabled: settings.enabled,
       sections: lastSections.map(s => ({
         key: s.key, hiddenSetting: !!settings.hide[s.key], visible: vis(s.block),
         height: Math.round(s.block.getBoundingClientRect().height) || null,
         resultsInside: mainTitles(s.block).length, pagerInside: hasPager(s.block), text: text(s.block),
+        // Google heads each group of real search results with a (hidden)
+        // "Web results" heading; titles without one are the section's own
+        // links, such as sources cited in "Things to know".
+        webGroupsInside: [...s.block.querySelectorAll(HEADING_SEL)].filter(h => WEB_HEADING.test(headingText(h))).length,
       })),
       unknownHeadings: unknown,
       cards: cards.length,
@@ -1169,6 +1208,7 @@
       preferredOnPage: lastPromoted, moved: markers,
       labels: document.querySelectorAll('[' + LABEL + ']').length,
       sitelinksHidden: document.querySelectorAll('[' + SITELINKS + ']').length,
+      chipsHidden: document.querySelectorAll('[' + CHIPS + ']').length,
       zoomed,
     };
   }

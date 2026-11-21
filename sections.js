@@ -48,8 +48,8 @@ globalThis.DP_SECTIONS = [
   { key: 'thingsToKnow', group: 'questions', label: 'Things to know',
     match: [/^things to know$/] },
 
-  { key: 'topStories', group: 'news', label: 'Top stories and news', hint: 'Including “Also in the news”',
-    match: [/^top stories$/, /^also in the news$/, /^news$/] },
+  { key: 'topStories', group: 'news', label: 'Top stories and news', hint: 'Including “Also in the news” and “Local news”',
+    match: [/^top stories$/, /^also in the news$/, /^news$/, /^local news$/] },
   { key: 'socialPosts', group: 'news', label: 'Social posts', hint: '“What people are saying” and “Latest posts from …”',
     match: [/^what people are saying$/, /^latest posts from\b/] },
   { key: 'discussions', group: 'news', label: 'Discussions and forums',
@@ -62,8 +62,9 @@ globalThis.DP_SECTIONS = [
 
   { key: 'products', group: 'shopping', label: 'Shopping listings', hint: 'Unpaid product listings: “Popular products”, “More products”, “In stores nearby”',
     match: [/^popular products$/, /^products$/, /^more products$/, /^in stores nearby$/] },
-  { key: 'local', group: 'shopping', label: 'Places and maps', hint: 'Local results, store locations, top sights, hotels',
-    match: [/^places$/, /^locations$/, /^local results$/, /^more locations$/, /^top sights in\b/, /^hotels \|/, /^more hotels$/] },
+  { key: 'local', group: 'shopping', label: 'Places and maps', hint: 'Local results, businesses, maps, store locations, top sights, hotels',
+    match: [/^places$/, /^locations$/, /^local results$/, /^more locations$/, /^top sights in\b/, /^hotels \|/, /^more hotels$/,
+      /^businesses$/, /^more businesses$/, /^map$/] },
   { key: 'showtimes', group: 'shopping', label: 'Showtimes', hint: 'Film times at nearby cinemas',
     match: [/^showtimes$/, /^showtimes (at|for)\b/] },
   { key: 'flights', group: 'shopping', label: 'Flights',

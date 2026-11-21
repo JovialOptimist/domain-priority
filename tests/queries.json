@@ -1,0 +1,41 @@
+{
+  "about": "Standard searches for testing Domain Priority, one per kind of Google results page. 'expect' lists section keys that usually appear; Google varies, so a missing one is a warning, not a failure. Run tests/audit.js on each (see tests/README.md).",
+  "searches": [
+    { "q": "albert einstein", "expect": ["knowledgePanel"], "why": "person; Wikipedia promotion; panel on the right" },
+    { "q": "taylor swift", "expect": ["topStories", "knowledgePanel"], "why": "person with news and social posts" },
+    { "q": "eiffel tower", "expect": ["knowledgePanel"], "why": "place" },
+    { "q": "dune part two", "expect": ["aiOverview", "cast", "showtimes"], "why": "film; split AI Overview" },
+    { "q": "bohemian rhapsody", "expect": ["knowledgePanel"], "why": "song; two Wikipedia results" },
+    { "q": "sounders", "expect": ["peopleAlsoSearch", "knowledgePanel"], "why": "team; 'People also search for' inside the right panel" },
+    { "q": "dogs", "expect": ["aiOverview", "peopleAlsoAsk"], "why": "AI answers inside People also ask" },
+    { "q": "how to tie a tie", "expect": ["videos", "aiOverview"], "why": "how-to" },
+    { "q": "symptoms of flu", "expect": ["aiOverview", "peopleAlsoAsk"], "why": "health" },
+    { "q": "define serendipity", "expect": [], "why": "definition (usually inside the AI Overview now)" },
+    { "q": "best running shoes", "expect": ["products"], "why": "shopping" },
+    { "q": "buy iphone 16", "expect": ["products", "local"], "why": "shopping: More products, In stores nearby" },
+    { "q": "journal app", "expect": ["aiOverview"], "why": "apps; sometimes 'Find related products & services'" },
+    { "q": "coffee near me", "expect": ["local"], "why": "local businesses" },
+    { "q": "taxes", "expect": ["topStories", "local"], "why": "Local news; Businesses and Map" },
+    { "q": "hotels in paris", "expect": ["local"], "why": "hotels; Google keeps loading for a while" },
+    { "q": "weather seattle", "expect": ["weather"], "why": "weather; location line above results" },
+    { "q": "5 usd to eur", "expect": ["converters"], "why": "currency" },
+    { "q": "2+2*7", "expect": ["calculator"], "why": "calculator" },
+    { "q": "translate hello to spanish", "expect": ["translate"], "why": "translation" },
+    { "q": "seahawks score", "expect": ["sports"], "why": "sports" },
+    { "q": "flights to tokyo", "expect": ["flights"], "why": "travel" },
+    { "q": "banana bread recipe", "expect": ["recipes"], "why": "recipes" },
+    { "q": "software engineer jobs", "expect": ["jobs"], "why": "jobs; location line above results" },
+    { "q": "concerts in seattle", "expect": ["events"], "why": "events" },
+    { "q": "nvda stock", "expect": ["knowledgePanel"], "why": "stock" },
+    { "q": "stocks", "expect": [], "why": "link chips under Yahoo Finance" },
+    { "q": "github", "expect": [], "why": "grouped results; site links under github.com" },
+    { "q": "wikipedia", "expect": [], "why": "four Wikipedia results; language chips" },
+    { "q": "youtube", "expect": [], "why": "site searched by name; Wikipedia still goes first" },
+    { "q": "attention is all you need paper", "expect": [], "why": "research paper" }
+  ],
+  "navigation": [
+    { "q": "albert einstein", "steps": "page 2 (Next), Back, Forward; run the check after each" },
+    { "q": "journal app", "steps": "open a result, wait, Back; then scroll to the bottom; run the check after each" },
+    { "q": "albert einstein", "steps": "Web tab (udm=14): handled; News (tbm=nws) and Images (udm=2): left alone" }
+  ]
+}

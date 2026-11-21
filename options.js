@@ -1,7 +1,7 @@
 const SECTIONS = globalThis.DP_SECTIONS;
 const GROUPS = globalThis.DP_GROUPS;
 const DEFAULT_HIDE = Object.fromEntries(SECTIONS.map(s => [s.key, !!s.hide]));
-const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, hide: DEFAULT_HIDE };
+const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
 const $ = id => document.getElementById(id);
 
 function normalizeDomain(d) {
@@ -125,7 +125,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (!t.matches('input[type=checkbox]')) return;
   if (t.id === 'enabled') { syncEnabled(); save({ enabled: t.checked }); }
-  else if (['highlight', 'fallback', 'inlineButtons', 'sitelinks'].includes(t.id)) save({ [t.id]: t.checked });
+  else if (['highlight', 'fallback', 'inlineButtons', 'sitelinks', 'chips'].includes(t.id)) save({ [t.id]: t.checked });
   else if (t.dataset.groupAll) {
     for (const input of sectionInputs()) if (input.dataset.group === t.dataset.groupAll) input.checked = t.checked;
     syncGroups();
@@ -171,6 +171,7 @@ chrome.storage.sync.get(DEFAULTS, s => {
   $('fallback').checked = s.fallback;
   $('inlineButtons').checked = s.inlineButtons;
   $('sitelinks').checked = s.sitelinks;
+  $('chips').checked = s.chips;
   if (s.fallback) $('advanced').open = true; // never tuck away an option that's on
   for (const input of sectionInputs()) input.checked = !hide[input.dataset.key];
   syncGroups();

@@ -25,8 +25,9 @@
       <div class="group">
         <div class="row stack">
           <label class="label" for="domains">Highest priority first, one per line</label>
-          <textarea id="domains" spellcheck="false" placeholder="wikipedia.org" aria-describedby="domains-d"></textarea>
+          <textarea id="domains" spellcheck="false" placeholder="wikipedia.org" aria-describedby="domains-d stars-d"></textarea>
           <span class="hint" id="domains-d">A domain also matches its subdomains, so <code>wikipedia.org</code> covers en.wikipedia.org, de.m.wikipedia.org, etc.</span>
+          <span class="hint" id="stars-d">Star (★) up to 3 domains in the toolbar popup to look for them when they have no result on the first page. Each starred domain that’s missing costs one extra Google search in the background; heavy use can bring up CAPTCHAs, and the extension stops looking in that tab if it sees one.</span>
         </div>
       </div>
     </div>
@@ -69,20 +70,6 @@
     <div id="sections"></div>
     <p class="note">Sections are recognised by their English headings, so this works when Google’s interface language is English. <button class="linkbtn" id="showall" type="button">Show all sections</button></p>
 
-    <details id="advanced">
-      <summary id="g-advanced">Advanced</summary>
-      <div role="group" aria-labelledby="g-advanced">
-      <div class="group">
-        <label class="row">
-          <input type="checkbox" id="fallback" aria-describedby="fallback-d">
-          <span class="text">
-            <span class="label">Pin a result when none is on the first page</span>
-            <span class="hint" id="fallback-d">Runs a background <code>site:</code> search for the top domain. This doubles the searches sent to Google for those queries; heavy use can trigger CAPTCHAs, and the extension stops trying in that tab if it sees one.</span>
-          </span>
-        </label>
-      </div>
-      </div>
-    </details>
   </div>
 
   <p class="saved" id="status" role="status"></p>

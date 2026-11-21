@@ -16,8 +16,8 @@
 
   const SECTIONS = globalThis.DP_SECTIONS || [];
   const DEFAULT_HIDE = Object.fromEntries(SECTIONS.map(s => [s.key, !!s.hide]));
-  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
-  const PINNED = 'data-dp-pinned';     // our injected fallback card
+  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], starred: null, highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
+  const PINNED = 'data-dp-pinned';     // a result found by the background search for a starred domain
   const HIDDEN = 'data-dp-hidden';     // section blocks we hide (value = section key)
   const PREVIEW = 'data-dp-preview';   // blocks faded while the popup row for them is hovered
   const ZOOMED = 'data-dp-zoomed';     // on <html> while the page is shrunk to fit for hover preview
@@ -29,7 +29,6 @@
   const EXCLUDE = 'g-scrolling-carousel, [aria-roledescription="carousel"], [' + PINNED + ']';
 
   let settings = { ...DEFAULTS };
-  let fallbackBusy = false;
 
   // ---------- domain matching ----------
 
@@ -826,13 +825,12 @@
     syncLabels(settings.highlight ? preferred : []);
 
     if (preferred.length) {
-      removePinned(); // a real preferred result exists; no need for the fallback card
       const anc = commonAncestor(cards.map(c => c.card));
       promote(anc, preferred);
     } else {
       promote(null, []);
-      maybeFallback(cards, root);
     }
+    lookForStarred(cards, root);
   }
 
   // ---------- marking promoted results ----------
@@ -938,23 +936,29 @@
     const ref = [...anc.children].find(k => !want.has(k) && mainTitles(k).some(h => !ours(h)));
     if (!ref) return;
 
-    // Last to first, so each goes just before the one after it.
+    // Last to first, so each goes just before the one after it. Results found
+    // by a background search (pinned) sit between the promoted results and
+    // the rest; they don't count as being in the way, or the two would keep
+    // moving each other.
+    const nextOf = el => { let n = el.nextElementSibling; while (n && n.hasAttribute(PINNED)) n = n.nextElementSibling; return n; };
     let next = ref;
     for (let i = units.length - 1; i >= 0; i--) {
       const u = units[i];
-      if (!(u.parentElement === anc && u.nextElementSibling === next)) {
+      if (!(u.parentElement === anc && nextOf(u) === next)) {
         if (!moved.has(u)) {
           const marker = document.createComment('dp: promoted result moved from here');
           u.parentNode.insertBefore(marker, u);
           moved.set(u, marker);
         }
-        anc.insertBefore(u, next);
+        let at = next;
+        while (at.previousElementSibling && at.previousElementSibling.hasAttribute(PINNED)) at = at.previousElementSibling;
+        anc.insertBefore(u, at);
       }
       next = u;
     }
   }
 
-  // ---------- optional fallback: background site: search ----------
+  // ---------- background search for starred domains ----------
 
   function removePinned() {
     for (const el of document.querySelectorAll('[' + PINNED + ']')) el.remove();
@@ -1019,43 +1023,67 @@
     });
   }
 
-  async function maybeFallback(cards, root) {
-    if (!settings.fallback || fallbackBusy || !settings.domains.length) return;
+  // Starred domains (up to 3, chosen in the popup) are looked for in the
+  // background when they have no result on page 1: one extra Google search
+  // each, cached per search for the tab session. What's found is pinned
+  // just below the promoted results, in priority order. A CAPTCHA or error
+  // stops all looking for the rest of the tab session.
+  const MAX_STARRED = 3;
+  const SEP = '\u001f';                // between query and domain in a pinned result's id
+  const fetching = new Set();          // ids being searched now
+
+  const hostMatches = (host, d) => host === d || host.endsWith('.' + d);
+
+  async function lookForStarred(cards, root) {
     const q = currentQuery();
-    if (!q) return;
+    const starred = settings.starred
+      .filter(d => settings.domains.includes(d))
+      .sort((a, b) => settings.domains.indexOf(a) - settings.domains.indexOf(b));
+    const missing = q ? starred.filter(d => !cards.some(c => hostMatches(c.host.replace(/^www\./, ''), d))) : [];
 
-    const existing = document.querySelector('[' + PINNED + ']');
-    if (existing && existing.getAttribute(PINNED) === q) return;
-    removePinned();
-
-    if (sessionStorage.getItem('dp-blocked')) return;
-    const domain = settings.domains[0];
-    const key = 'dp-hit:' + domain + ':' + q;
-
-    let hit;
-    const cached = sessionStorage.getItem(key);
-    if (cached) {
-      hit = JSON.parse(cached);
-    } else {
-      fallbackBusy = true;
-      try {
-        hit = (await fetchHit(q, domain)) || { none: true };
-        sessionStorage.setItem(key, JSON.stringify(hit));
-      } catch {
-        // Google served a CAPTCHA or error: stop trying for this tab session.
-        sessionStorage.setItem('dp-blocked', '1');
-        return;
-      } finally {
-        fallbackBusy = false;
-      }
+    // Drop pinned results that are no longer wanted (unstarred, now on the
+    // page, or from an earlier search).
+    for (const el of document.querySelectorAll('[' + PINNED + ']')) {
+      const [pq, pd] = el.getAttribute(PINNED).split(SEP);
+      if (pq !== q || !missing.includes(pd)) el.remove();
     }
-    if (hit.none || currentQuery() !== q) return;
-    insertPinned(hit, q, cards, root);
+    if (!missing.length || sessionStorage.getItem('dp-blocked')) return;
+
+    for (const domain of missing) {
+      const id = q + SEP + domain;
+      if (fetching.has(id) || pinnedFor(id)) continue;
+      const key = 'dp-hit:' + domain + ':' + q;
+      let hit;
+      const cached = sessionStorage.getItem(key);
+      if (cached) {
+        hit = JSON.parse(cached);
+      } else {
+        fetching.add(id);
+        try {
+          hit = (await fetchHit(q, domain)) || { none: true };
+          sessionStorage.setItem(key, JSON.stringify(hit));
+        } catch {
+          // Google served a CAPTCHA or error: stop trying for this tab session.
+          sessionStorage.setItem('dp-blocked', '1');
+          return;
+        } finally {
+          fetching.delete(id);
+        }
+      }
+      if (hit.none || currentQuery() !== q || pinnedFor(id)) continue;
+      insertPinned(hit, id, domain);
+    }
   }
 
-  function insertPinned(hit, q, cards, root) {
+  function pinnedFor(id) {
+    return [...document.querySelectorAll('[' + PINNED + ']')].find(el => el.getAttribute(PINNED) === id);
+  }
+
+  // Below the promoted results and any earlier pinned ones (priority order),
+  // above the first result that isn't preferred.
+  function insertPinned(hit, id, domain) {
     const host = document.createElement('div');
-    host.setAttribute(PINNED, q);
+    host.setAttribute(PINNED, id);
     host.style.margin = '0 0 24px';
     const shadow = host.attachShadow({ mode: 'open' });
     const u = new URL(hit.href);
@@ -1093,10 +1121,19 @@
     }
     shadow.append(style, wrap);
 
-    const anc = commonAncestor(cards.map(c => c.card));
-    const firstBlock = anc && cards.length ? childOf(anc, cards[0].card) : null;
-    if (firstBlock) anc.insertBefore(host, firstBlock);
-    else root.prepend(host);
+    const root = resultsRoot();
+    if (!root) return;
+    const cards = findCards(root);
+    const anc = commonAncestor(cards.map(c => c.card)) || root;
+    const firstOther = cards.find(c => c.rank < 0);
+    let ref = firstOther ? childOf(anc, firstOther.card) : null;
+    // Keep pinned results in priority order among themselves.
+    const rank = d => settings.domains.indexOf(d);
+    const after = [...anc.querySelectorAll(':scope > [' + PINNED + ']')]
+      .find(el => rank(el.getAttribute(PINNED).split(SEP)[1]) > rank(domain));
+    if (after) ref = after;
+    if (ref) anc.insertBefore(host, ref);
+    else anc.append(host);
   }
 
   // ---------- wiring ----------
@@ -1113,7 +1150,11 @@
       enabled: raw.enabled ?? DEFAULTS.enabled,
       domains,
       highlight: raw.highlight ?? DEFAULTS.highlight,
-      fallback: raw.fallback ?? DEFAULTS.fallback,
+      // Starred domains: those in the list, at most 3. Before stars existed,
+      // the "Pin a result" option looked for the top domain only.
+      starred: (Array.isArray(raw.starred) ? raw.starred.map(normalizeDomain)
+        : raw.fallback && domains.length ? [domains[0]] : [])
+        .filter(d => domains.includes(d)).slice(0, MAX_STARRED),
       inlineButtons: raw.inlineButtons ?? DEFAULTS.inlineButtons,
       sitelinks: raw.sitelinks ?? DEFAULTS.sitelinks,
       chips: raw.chips ?? DEFAULTS.chips,
@@ -1190,6 +1231,8 @@
     while (walk.nextNode()) if (/^dp: promoted/.test(walk.currentNode.data)) markers++;
     return {
       applyRuns,
+      domains: settings.domains, starred: settings.starred,
+      pinned: [...document.querySelectorAll('[' + PINNED + ']')].map(el => el.getAttribute(PINNED).split(SEP)[1]),
       onAllTab: onAllResultsTab(),
       enabled: settings.enabled,
       sections: lastSections.map(s => ({

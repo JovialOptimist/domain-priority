@@ -171,6 +171,11 @@ async function connect() {
 // button. New domains go at the bottom.
 
 let domains = [];
+// Starred domains are looked for in the background (one extra Google search
+// each) when they're missing from page 1. At most 3, to keep the extra
+// searches low; Google may show CAPTCHAs if there are too many.
+let starred = [];
+const MAX_STARRED = 3;
 
 function normalizeDomain(d) {
   return String(d).trim().toLowerCase()
@@ -180,8 +185,13 @@ function normalizeDomain(d) {
 }
 
 async function saveDomains() {
-  await chrome.storage.sync.set({ domains });
+  starred = starred.filter(d => domains.includes(d));
+  await chrome.storage.sync.set({ domains, starred });
   flashSaved();
+}
+
+function showStarCount() {
+  $('star-count').textContent = '★ ' + starred.length + ' of ' + MAX_STARRED + ' looked for';
 }
 
 function setMsg(text, isError) {
@@ -240,7 +250,27 @@ function renderDomains(focus) {
         setMsg('Removed ' + d + '.');
         saveDomains();
       });
-      row.append(handle, rank, name, hint, remove);
+      const on = starred.includes(d);
+      const full = !on && starred.length >= MAX_STARRED;
+      const star = document.createElement('button');
+      star.type = 'button';
+      star.className = 'icon-btn star';
+      star.textContent = on ? '★' : '☆';
+      star.setAttribute('aria-pressed', String(on));
+      star.setAttribute('aria-label', 'Look for ' + d + ' when it’s missing from page 1');
+      if (full) star.setAttribute('aria-disabled', 'true');
+      star.title = full ? 'Up to ' + MAX_STARRED + ' can be starred: unstar one first'
+        : on ? 'Looked for when it’s missing from page 1. Click to stop'
+        : 'Look for this site when it’s missing from page 1 (one extra search)';
+      star.addEventListener('click', () => {
+        if (full) return setMsg('× Up to ' + MAX_STARRED + ' domains can be starred. Unstar one first.', true);
+        starred = on ? starred.filter(x => x !== d) : [...starred, d];
+        showStarCount();
+        renderDomains({ index: i, what: 'star' });
+        setMsg(on ? d + ' won’t be looked for.' : '★ ' + d + ' will be looked for when it’s missing from page 1.');
+        saveDomains();
+      });
+      row.append(handle, rank, name, hint, star, remove);
       return row;
     }));
   }
@@ -319,23 +349,32 @@ $('add-form').addEventListener('submit', e => {
 // ---------- settings ----------
 
 function loadSettings() {
-  chrome.storage.sync.get({ enabled: true, domains: ['wikipedia.org'] }, s => {
+  chrome.storage.sync.get({ enabled: true, domains: ['wikipedia.org'], starred: null, fallback: false }, s => {
     enabled = s.enabled;
     showPower();
     const next = s.domains.map(normalizeDomain).filter(Boolean);
+    let nextStarred = s.starred;
+    if (!Array.isArray(nextStarred)) {
+      // Before stars, "Pin a result" in Settings looked for the top domain only.
+      nextStarred = s.fallback && next.length ? [next[0]] : [];
+      chrome.storage.sync.set({ starred: nextStarred });
+      chrome.storage.sync.remove('fallback');
+    }
+    nextStarred = nextStarred.map(normalizeDomain).filter(d => next.includes(d)).slice(0, MAX_STARRED);
     // Our own saves come back through onChanged too; redrawing then would
     // take keyboard focus off the row just used.
-    if (JSON.stringify(next) !== JSON.stringify(domains) || !$('domain-list').children.length) {
-      domains = next;
-      renderDomains();
-    }
+    const changed = JSON.stringify(next) !== JSON.stringify(domains) || JSON.stringify(nextStarred) !== JSON.stringify(starred);
+    domains = next;
+    starred = nextStarred;
+    showStarCount();
+    if (changed || !$('domain-list').children.length) renderDomains();
   });
 }
 loadSettings();
 
 // Stay in step with changes made in Settings (or another window).
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && ('enabled' in changes || 'domains' in changes)) loadSettings();
+  if (area === 'sync' && ('enabled' in changes || 'domains' in changes || 'starred' in changes)) loadSettings();
 });
 
 // Editing happens on the page itself: the popup would close on the first

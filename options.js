@@ -1,7 +1,7 @@
 const SECTIONS = globalThis.DP_SECTIONS;
 const GROUPS = globalThis.DP_GROUPS;
 const DEFAULT_HIDE = Object.fromEntries(SECTIONS.map(s => [s.key, !!s.hide]));
-const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
+const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], starred: [], highlight: true, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
 const $ = id => document.getElementById(id);
 
 function normalizeDomain(d) {
@@ -70,8 +70,19 @@ function parseDomains() {
   return [...new Set($('domains').value.split('\n').map(normalizeDomain).filter(Boolean))];
 }
 
+// Starred domains (set in the popup) must stay in the list: removing a
+// domain here also unstars it.
+let starred = [];
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.starred) starred = changes.starred.newValue || [];
+});
 function domainsSave() {
-  return { domains: parseDomains() };
+  const domains = parseDomains();
+  if (!starred.every(d => domains.includes(d))) {
+    starred = starred.filter(d => domains.includes(d));
+    return { domains, starred };
+  }
+  return { domains };
 }
 
 // Storage keeps the original "hide" map, so a checked (shown) box is hide: false.
@@ -125,7 +136,7 @@ document.addEventListener('change', e => {
   const t = e.target;
   if (!t.matches('input[type=checkbox]')) return;
   if (t.id === 'enabled') { syncEnabled(); save({ enabled: t.checked }); }
-  else if (['highlight', 'fallback', 'inlineButtons', 'sitelinks', 'chips'].includes(t.id)) save({ [t.id]: t.checked });
+  else if (['highlight', 'inlineButtons', 'sitelinks', 'chips'].includes(t.id)) save({ [t.id]: t.checked });
   else if (t.dataset.groupAll) {
     for (const input of sectionInputs()) if (input.dataset.group === t.dataset.groupAll) input.checked = t.checked;
     syncGroups();
@@ -167,12 +178,11 @@ chrome.storage.sync.get(DEFAULTS, s => {
   const hide = { ...DEFAULT_HIDE, ...(s.hide || {}) };
   $('enabled').checked = s.enabled;
   $('domains').value = s.domains.join('\n');
+  starred = Array.isArray(s.starred) ? s.starred : [];
   $('highlight').checked = s.highlight;
-  $('fallback').checked = s.fallback;
   $('inlineButtons').checked = s.inlineButtons;
   $('sitelinks').checked = s.sitelinks;
   $('chips').checked = s.chips;
-  if (s.fallback) $('advanced').open = true; // never tuck away an option that's on
   for (const input of sectionInputs()) input.checked = !hide[input.dataset.key];
   syncGroups();
   syncEnabled();

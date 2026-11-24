@@ -1339,6 +1339,24 @@
         webGroupsInside: [...s.block.querySelectorAll(HEADING_SEL)].filter(h => WEB_HEADING.test(headingText(h))).length,
       })),
       unknownHeadings: unknown,
+      // Every heading on the page (not inside a result's title link), for
+      // the heading inventory: its text, the text matched against section
+      // names, which section it names (if any), which section's box it sits
+      // in (if any), and where on the page it is.
+      headings: [...scope.querySelectorAll('h1, h2, h3, h4, [role="heading"]')]
+        .filter(el => !el.closest('a') && !el.parentElement.closest('h1, h2, h3, h4, [role="heading"]'))
+        .map(el => {
+          const known = sectionHeadings(el.parentElement).find(h => h.el === el);
+          return {
+            text: text(el), match: headingText(el).slice(0, 80),
+            level: el.getAttribute('aria-level') || el.tagName.toLowerCase(),
+            visible: vis(el),
+            names: known ? known.key : null,
+            inside: (lastSections.find(s => s.block.contains(el)) || {}).key || null,
+            area: el.closest('#rhs') ? 'right' : el.closest('#center_col') ? 'main' : 'other',
+          };
+        })
+        .filter(h => h.text),
       cards: cards.length,
       gotoLinks: root ? root.querySelectorAll('a[href^="/goto?"]').length : 0,
       firstHosts: cards.filter(c => vis(c.card)).slice(0, 6).map(c => c.host.replace(/^www\./, '') + (c.rank >= 0 ? ' ★' : '')),

@@ -36,7 +36,8 @@
     { "q": "gold price today", "expect": ["finance"], "why": "market price chart" },
     { "q": "snake", "expect": ["games"], "why": "Google game" },
     { "q": "solve 2x+3=11", "expect": ["calculator"], "why": "math solver" },
-    { "q": "what time is it", "expect": ["tools"], "why": "clock" },
+    { "q": "what time is it", "expect": ["clock"], "why": "clock" },
+    { "q": "speed test", "expect": ["speedTest"], "why": "internet speed test" },
     { "q": "weather", "expect": ["weather"], "why": "weather without a location: 'Can't determine location' prompt" }
   ],
   "navigation": [

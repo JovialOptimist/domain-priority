@@ -31,7 +31,14 @@
     { "q": "github", "expect": [], "why": "grouped results; site links under github.com" },
     { "q": "wikipedia", "expect": [], "why": "four Wikipedia results; language chips" },
     { "q": "youtube", "expect": [], "why": "site searched by name; Wikipedia still goes first" },
-    { "q": "attention is all you need paper", "expect": [], "why": "research paper" }
+    { "q": "attention is all you need paper", "expect": [], "why": "research paper" },
+    { "q": "espn", "expect": ["socialPosts"], "why": "'Latest from espn.com' feed" },
+    { "q": "gold price today", "expect": ["finance"], "why": "market price chart" },
+    { "q": "snake", "expect": ["games"], "why": "Google game" },
+    { "q": "solve 2x+3=11", "expect": ["calculator"], "why": "math solver" },
+    { "q": "what time is it", "expect": ["clock"], "why": "clock" },
+    { "q": "speed test", "expect": ["speedTest"], "why": "internet speed test" },
+    { "q": "weather", "expect": ["weather"], "why": "weather without a location: 'Can't determine location' prompt" }
   ],
   "navigation": [
     { "q": "albert einstein", "steps": "page 2 (Next), Back, Forward; run the check after each" },

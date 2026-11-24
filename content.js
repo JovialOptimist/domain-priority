@@ -153,8 +153,23 @@
   const WEB_HEADING = /^web results?$|^web result with site links$/;
   const BOUNDARY = '#rso, #center_col, #rcnt, #rhs, #botstuff, #search, #taw, #main, body, html';
 
+  // A heading's text, as matched against the section names. Parts Google
+  // hides from screen readers are left out, and so is trailing punctuation:
+  // "Popular products. In-demand favorites" is usually built as "Popular
+  // products", an invisible ".", and the subtitle marked aria-hidden, so it
+  // reads as "popular products".
   function headingText(el) {
-    return el.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+    let text = '';
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while (walk.nextNode()) {
+      const parent = walk.currentNode.parentElement;
+      if (parent && parent !== el && el.contains(parent.closest('[aria-hidden="true"]'))) continue;
+      text += walk.currentNode.data;
+    }
+    // Some copies of that heading leave the subtitle visible to screen
+    // readers too, so also stop at the first ". " (no section name has one).
+    text = text.replace(/\s+/g, ' ').trim().split('. ')[0].replace(/[\s.]+$/, '');
+    return (text || el.textContent.replace(/\s+/g, ' ').trim()).toLowerCase();
   }
 
   // Every known section heading on the page, as { el, key }. Level-3 role

@@ -984,12 +984,55 @@
     return best.slice(0, 300);
   }
 
-  function extractHit(doc, domain) {
+  // Image data we'll draw: a plain raster image embedded in the page, so it
+  // needs no request and can't carry script. Capped so the session cache
+  // stays small.
+  const IMAGE_DATA = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/;
+  const okImage = src => typeof src === 'string' && src.length < 200000 && IMAGE_DATA.test(src) ? src : null;
+
+  // The site name sits in the row above the URL line (<cite>), as for the
+  // label on promoted results.
+  function siteNameOf(card, link) {
+    const cite = link.querySelector('cite') || card.querySelector('cite');
+    const row = cite && cite.parentElement && cite.parentElement.previousElementSibling;
+    const name = row && row.textContent.replace(/\s+/g, ' ').trim();
+    return name && name.length <= 60 ? name : null;
+  }
+
+  // Google gives result thumbnails a placeholder and fills them in from a
+  // script string elsewhere in the page: 'data:image/…' followed shortly by
+  // the image's id. Read it from the raw HTML when we have it; in a rendered
+  // page (the iframe path) the image already has its real source.
+  function thumbnailOf(card, html) {
+    const img = card.querySelector('img[id]');
+    if (!img) return null;
+    const own = okImage(img.getAttribute('src'));
+    if (own && !own.startsWith('data:image/gif')) return own;
+    if (!html) return null;
+    const re = /'(data:image\/(?:png|jpeg|webp);base64,[^']{50,})'/g;
+    let m;
+    while ((m = re.exec(html))) {
+      if (!html.slice(re.lastIndex, re.lastIndex + 300).includes(img.id)) continue;
+      // Undo the script string's escapes (\x3d for "=", "\/" for "/").
+      const src = m[1].replace(/\\x([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\\//g, '/');
+      return okImage(src);
+    }
+    return null;
+  }
+
+  // The result for `domain` in a background-search page: everything the
+  // pinned card draws. html is the page's raw HTML, when we have it.
+  function extractHit(doc, domain, html) {
     const root = doc.querySelector('#rso') || doc.querySelector('#search') || doc.body;
     if (!root) return null;
     const c = findCards(root).find(x => x.host === domain || x.host.endsWith('.' + domain));
     if (!c) return null;
-    return { title: c.h3.textContent.trim(), href: c.url.href, snippet: snippetOf(c.card, c.link) };
+    const icon = [...c.link.querySelectorAll('img')].map(i => okImage(i.getAttribute('src')))
+      .find(src => src && !src.startsWith('data:image/gif'));
+    return {
+      title: c.h3.textContent.trim(), href: c.url.href, snippet: snippetOf(c.card, c.link),
+      siteName: siteNameOf(c.card, c.link), icon: icon || null, thumbnail: thumbnailOf(c.card, html),
+    };
   }
 
   async function fetchHit(q, domain) {
@@ -1002,7 +1045,7 @@
     // gets this page's CSP, and Chrome logs a violation for every handler
     // attribute it parses, even though nothing in a parsed document runs.
     const html = (await res.text()).replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*')/gi, '');
-    const hit = extractHit(new DOMParser().parseFromString(html, 'text/html'), domain);
+    const hit = extractHit(new DOMParser().parseFromString(html, 'text/html'), domain, html);
     if (hit) return hit;
 
     // 2) If Google's HTML needs JavaScript to render results, load it in a
@@ -1087,37 +1130,65 @@
     host.style.margin = '0 0 24px';
     const shadow = host.attachShadow({ mode: 'open' });
     const u = new URL(hit.href);
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
 
+    // Laid out like a Google result: icon, site name and address, title,
+    // then the snippet with the thumbnail beside it. Google's own menu (⋮)
+    // can't be copied; the label on the name line says where it came from.
     const style = document.createElement('style');
     style.textContent = `
       :host{display:block}
-      .wrap{font-family:Arial,sans-serif;max-width:600px}
-      .tag{font-size:14px;color:#202124;margin-bottom:2px}
-      .url{font-size:14px;color:#4d5156}
-      a{text-decoration:none}
-      a h3{font-size:20px;line-height:1.3;font-weight:400;color:#1a0dab;margin:2px 0 4px}
+      .wrap{font-family:Arial,sans-serif;max-width:652px;color:#202124}
+      a{text-decoration:none;color:inherit;display:block}
+      .head{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+      .icon{width:28px;height:28px;flex:none;border-radius:50%;background:#f1f3f4;display:flex;align-items:center;justify-content:center;overflow:hidden;font:bold 13px/1 Arial,sans-serif;color:#4d5156}
+      .icon img{width:100%;height:100%;object-fit:cover}
+      .who{display:flex;flex-direction:column;min-width:0}
+      .name{font-size:14px;line-height:20px;color:#202124;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .url{font-size:12px;line-height:18px;color:#4d5156;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      h3{font:400 22px/28px "Google Sans",Arial,sans-serif;color:#1a0dab;margin:0 0 3px}
       a:hover h3{text-decoration:underline}
-      .snip{font-size:14px;line-height:1.58;color:#4d5156}
-      @media (prefers-color-scheme:dark){a h3{color:#99c3ff}.url,.snip{color:#bdc1c6}.tag{color:#dadce0}}`;
-    const wrap = document.createElement('div');
-    wrap.className = 'wrap';
-    const tag = document.createElement('div');
-    tag.className = 'tag';
-    tag.textContent = '★ Preferred source · found by Domain Priority';
-    const a = document.createElement('a');
+      a:focus-visible{outline:2px solid #1a73e8;outline-offset:2px;border-radius:4px}
+      .body{display:flex;gap:16px;align-items:flex-start}
+      .snip{flex:1;font-size:14px;line-height:22px;color:#4d5156}
+      .thumb{width:92px;height:92px;flex:none;border-radius:8px;object-fit:cover}
+      @media (prefers-color-scheme:dark){
+        .wrap,.name{color:#dadce0}.url,.snip{color:#bdc1c6}h3{color:#99c3ff}
+        .icon{background:#303134;color:#bdc1c6}}`;
+    const wrap = el('div', 'wrap');
+    const a = el('a');
     a.href = hit.href;
-    const urlLine = document.createElement('div');
-    urlLine.className = 'url';
-    urlLine.textContent = u.hostname + u.pathname;
-    const h3 = document.createElement('h3');
-    h3.textContent = hit.title;
-    a.append(urlLine, h3);
-    wrap.append(tag, a);
-    if (hit.snippet) {
-      const s = document.createElement('div');
-      s.className = 'snip';
-      s.textContent = hit.snippet;
-      wrap.append(s);
+    const head = el('div', 'head');
+    const icon = el('span', 'icon');
+    icon.setAttribute('aria-hidden', 'true');
+    if (hit.icon) {
+      const img = el('img');
+      img.src = hit.icon;
+      img.alt = '';
+      icon.append(img);
+    } else {
+      icon.textContent = (hit.siteName || u.hostname.replace(/^www\./, ''))[0].toUpperCase();
+    }
+    const who = el('span', 'who');
+    const name = el('span', 'name', (hit.siteName || u.hostname.replace(/^www\./, '')) + ' · ');
+    const star = el('span', '', '★');
+    star.setAttribute('aria-hidden', 'true');
+    name.append(star, ' Preferred source · found by Domain Priority');
+    const path = u.pathname.split('/').filter(Boolean).slice(0, 2).map(seg => { try { return decodeURIComponent(seg); } catch { return seg; } });
+    who.append(name, el('span', 'url', [u.origin, ...path].join(' › ')));
+    head.append(icon, who);
+    a.append(head, el('h3', '', hit.title));
+    wrap.append(a);
+    if (hit.snippet || hit.thumbnail) {
+      const body = el('div', 'body');
+      body.append(el('div', 'snip', hit.snippet || ''));
+      if (hit.thumbnail) {
+        const thumb = el('img', 'thumb');
+        thumb.src = hit.thumbnail;
+        thumb.alt = '';
+        body.append(thumb);
+      }
+      wrap.append(body);
     }
     shadow.append(style, wrap);
 

@@ -24,7 +24,14 @@ const DEV = !('update_url' in chrome.runtime.getManifest());
 chrome.runtime.onMessage.addListener((msg, sender) => {
   if (DEV && msg && msg.type === 'dp-dev-reload') { chrome.runtime.reload(); return; }
   if (DEV && msg && msg.type === 'dp-dev-set' && msg.values && typeof msg.values === 'object') {
-    chrome.storage.sync.set(msg.values);
+    // A "hide" value changes only the sections it names, so a test that
+    // hides one section doesn't reset the rest of the user's choices.
+    const { hide, ...rest } = msg.values;
+    if (hide && typeof hide === 'object') {
+      chrome.storage.sync.get({ hide: {} }, raw => chrome.storage.sync.set({ ...rest, hide: { ...raw.hide, ...hide } }));
+    } else {
+      chrome.storage.sync.set(msg.values);
+    }
     return;
   }
   if (!msg || msg.type !== 'dp-badge' || !sender.tab) return;

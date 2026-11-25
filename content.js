@@ -249,7 +249,16 @@
   // Google's entity attributes and no other known section heading. A level-3
   // heading inside one ("People also search for" on "eiffel tower") is part
   // of the panel, not a reason to leave it out.
+  //
+  // On searches for a site's name ("youtube") Google puts the panel in one
+  // box with an AI Overview and "Latest posts". Such a box is split into its
+  // children: those holding another section stay out, the rest are the
+  // panel. It counts as a panel only if one of those children carries entity
+  // attributes and no heading at all (the panel's title and description), so
+  // a box of AI Overview and "People also search for" ("hot dogs") isn't
+  // taken for one.
   const isLevel3 = el => el.getAttribute('aria-level') === '3';
+  const hasAttrs = el => !!el.querySelector('[data-attrid], [data-kpid]');
 
   function knowledgePanelBlocks(heads, center) {
     const out = [];
@@ -260,10 +269,12 @@
       candidates.push(...Array.from(center.parentElement.children).filter(c => c !== center && c.id !== 'rhs'));
     }
     if (rhs) candidates.push(...rhs.children);
+    const holdsOther = el => heads.some(h => el.contains(h.el) && !isLevel3(h.el));
     for (const c of candidates) {
-      if (!c.querySelector('[data-attrid], [data-kpid]')) continue;
-      if (heads.some(h => c.contains(h.el) && !isLevel3(h.el))) continue;
-      out.push(c);
+      if (!hasAttrs(c)) continue;
+      if (!holdsOther(c)) { out.push(c); continue; }
+      const parts = [...c.children].filter(k => !holdsOther(k));
+      if (parts.some(k => hasAttrs(k) && !heads.some(h => k.contains(h.el)))) out.push(...parts);
     }
     return out;
   }
@@ -1277,7 +1288,8 @@
   // test script on the page can:
   //   window.dispatchEvent(new Event('dp-dev-reload'))   reload the unpacked extension
   //   document.documentElement.dataset.dpDevSet = '{"sitelinks":false}';
-  //   window.dispatchEvent(new Event('dp-dev-set'))      change settings
+  //   window.dispatchEvent(new Event('dp-dev-set'))      change settings ("hide"
+  //                                                      changes only the sections it names)
   // (The values travel in an attribute because event details don't cross
   // from the page's scripts to this one.)
   const devSend = msg => { try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch { /* already reloaded */ } };
@@ -1329,6 +1341,7 @@
       pinned: [...document.querySelectorAll('[' + PINNED + ']')].map(el => el.getAttribute(PINNED).split(SEP)[1]),
       onAllTab: onAllResultsTab(),
       enabled: settings.enabled,
+      hide: settings.hide,
       sections: lastSections.map(s => ({
         key: s.key, hiddenSetting: !!settings.hide[s.key], visible: vis(s.block),
         height: Math.round(s.block.getBoundingClientRect().height) || null,

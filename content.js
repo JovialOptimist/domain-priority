@@ -150,7 +150,26 @@
   // ordinary results.
 
   const WEB_HEADING = /^web results?$|^web result with site links$/;
-  const BOUNDARY = '#rso, #center_col, #rcnt, #rhs, #botstuff, #search, #taw, #main, body, html';
+  const BOUNDARY = '#rso, #center_col, #rcnt, #rhs, #botstuff, #search, #taw, #cnt, #main, body, html';
+
+  // Where sections are looked for: the results area (#rcnt), plus the
+  // full-width strips Google sometimes puts above it as its own siblings,
+  // such as a "Sponsored products" carousel (search "hot dogs"). Only the
+  // siblings after #appbar count: the tabs, the "Search Results" heading
+  // and the tools menu (#top_nav) come before it, and the footer after
+  // #rcnt. The location line in between names no section.
+  function sectionScopes() {
+    const rcnt = document.getElementById('rcnt');
+    if (!rcnt) return [document.getElementById('main') || document.body];
+    const scopes = [];
+    const appbar = document.getElementById('appbar');
+    if (appbar && appbar.parentElement === rcnt.parentElement) {
+      for (let el = appbar.nextElementSibling; el && el !== rcnt; el = el.nextElementSibling) scopes.push(el);
+    }
+    scopes.push(rcnt);
+    return scopes;
+  }
+  const inScopes = (scopes, sel) => scopes.flatMap(s => [...s.querySelectorAll(sel)]);
 
   // A heading's text, as matched against the section names. Parts Google
   // hides from screen readers are left out, and so is trailing punctuation:
@@ -177,9 +196,10 @@
   // so other level-3 headings ("Main Cast" in an AI Overview) are ignored.
   const HEADING_SEL = 'h2, h3, [role="heading"][aria-level="2"], [role="heading"][aria-level="3"]';
 
-  function sectionHeadings(scope) {
+  function sectionHeadings(scopes) {
+    if (!Array.isArray(scopes)) scopes = [scopes];
     const found = [];
-    for (const el of scope.querySelectorAll(HEADING_SEL)) {
+    for (const el of inScopes(scopes, HEADING_SEL)) {
       if (el.closest('a, [role="dialog"], g-menu') || el.parentElement.closest('h2, h3, [role="heading"]')) continue;
       // Sitelinks under a result ("Roster", "News") are <h3 aria-level="4">: not sections.
       if (Number(el.getAttribute('aria-level')) > 3) continue;
@@ -189,7 +209,7 @@
       const s = SECTIONS.find(s => s.match && s.match.some(re => re.test(text)));
       if (s) found.push({ el, key: s.key });
     }
-    for (const el of scope.querySelectorAll('[role="region"][aria-label]')) {
+    for (const el of inScopes(scopes, '[role="region"][aria-label]')) {
       const label = el.getAttribute('aria-label');
       const s = SECTIONS.find(s => s.region && s.region.includes(label));
       if (s) found.push({ el, key: s.key });
@@ -293,9 +313,8 @@
   // Every known section on the page as { key, block }, one entry per block.
   function collectSections() {
     if (!onAllResultsTab()) return [];
-    const scope = document.getElementById('rcnt') || document.getElementById('main') || document.body;
     const center = document.getElementById('center_col');
-    const heads = sectionHeadings(scope);
+    const heads = sectionHeadings(sectionScopes());
     const panels = knowledgePanelBlocks(heads, center);
     const out = [];
     const seen = new Set();
@@ -1317,11 +1336,11 @@
     const text = el => el.textContent.replace(/\s+/g, ' ').trim().slice(0, 60);
     const vis = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     const root = resultsRoot();
-    const scope = document.getElementById('rcnt') || document.getElementById('main') || document.body;
+    const scopes = sectionScopes();
     const cards = root ? findCards(root) : [];
-    const known = new Set(sectionHeadings(scope).map(h => h.el));
+    const known = new Set(sectionHeadings(scopes).map(h => h.el));
     const blocks = lastSections.map(s => s.block);
-    const candidates = [...scope.querySelectorAll(HEADING_SEL + ', [role="region"][aria-label]')]
+    const candidates = inScopes(scopes, HEADING_SEL + ', [role="region"][aria-label]')
       .filter(el => !el.closest('a, [role="dialog"], g-menu') && !(Number(el.getAttribute('aria-level')) > 3))
       .filter(el => !el.parentElement.closest('h2, h3, [role="heading"]'));
     const unknown = candidates
@@ -1356,7 +1375,7 @@
       // the heading inventory: its text, the text matched against section
       // names, which section it names (if any), which section's box it sits
       // in (if any), and where on the page it is.
-      headings: [...scope.querySelectorAll('h1, h2, h3, h4, [role="heading"]')]
+      headings: inScopes(scopes, 'h1, h2, h3, h4, [role="heading"]')
         .filter(el => !el.closest('a') && !el.parentElement.closest('h1, h2, h3, h4, [role="heading"]'))
         .map(el => {
           const known = sectionHeadings(el.parentElement).find(h => h.el === el);

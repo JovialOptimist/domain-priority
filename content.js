@@ -1286,16 +1286,34 @@
     };
   }
 
-  chrome.storage.sync.get(DEFAULTS, raw => {
+  // The script starts before Google's page is parsed (run_at
+  // document_start), while early.css keeps the results area invisible. The
+  // first pass waits for the whole page to be parsed, since sections are
+  // found by what surrounds their headings; then the results are shown,
+  // already sorted. Starting early saves the wait for Google's images and
+  // scripts that document_idle would add (0.2 to 1 s on popular searches).
+  const READY = 'data-dp-ready';
+  const showResults = () => document.documentElement.setAttribute(READY, '');
+  if (!onAllResultsTab()) showResults();   // other tabs: nothing to sort
+  const domParsed = new Promise(res => {
+    if (document.readyState !== 'loading') res();
+    else document.addEventListener('DOMContentLoaded', res, { once: true });
+  });
+
+  chrome.storage.sync.get(DEFAULTS, async raw => {
     loadSettings(raw);
+    if (!settings.enabled) showResults();
+    await domParsed;
     apply();
+    showResults();
     // Re-run when Google adds results (continuous scroll, in-page navigation).
     new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
     window.addEventListener('resize', () => requestAnimationFrame(() => { if (zoomed) updateZoom(); else positionButtons(); }));
   });
 
-  chrome.storage.onChanged.addListener((_changes, area) => {
+  chrome.storage.onChanged.addListener(async (_changes, area) => {
     if (area !== 'sync') return;
+    await domParsed;
     chrome.storage.sync.get(DEFAULTS, raw => {
       loadSettings(raw);
       removePinned();

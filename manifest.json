@@ -19,11 +19,14 @@
       "matches": [
         "https://www.google.com/search*"
       ],
+      "css": [
+        "early.css"
+      ],
       "js": [
         "sections.js",
         "content.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ]
 }

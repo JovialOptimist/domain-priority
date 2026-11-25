@@ -67,9 +67,12 @@ From the page's own scripts (development build only):
 - `window.dispatchEvent(new Event('dp-dev-reload'))` reloads the extension.
   Wait about 4 seconds before loading a new page.
 - `document.documentElement.dataset.dpDevSet = '{"chips":false}'` then
-  `window.dispatchEvent(new Event('dp-dev-set'))` changes settings.
+  `window.dispatchEvent(new Event('dp-dev-set'))` changes settings. A `hide`
+  value changes only the sections it names (`{"hide":{"games":true}}` leaves
+  every other section as it was); other settings are replaced.
 - `document.documentElement.dataset.dpDevPreview = 'videos'` then
   `window.dispatchEvent(new Event('dp-dev-preview'))` acts as if the popup
   points at a section (`''` for none).
 - `window.dispatchEvent(new Event('dp-dev-report'))` writes the report to
-  `document.documentElement.dataset.dpDevReport`.
+  `document.documentElement.dataset.dpDevReport`. Its `hide` lists every
+  section's current setting.

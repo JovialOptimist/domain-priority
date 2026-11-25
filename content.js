@@ -1277,7 +1277,8 @@
   // test script on the page can:
   //   window.dispatchEvent(new Event('dp-dev-reload'))   reload the unpacked extension
   //   document.documentElement.dataset.dpDevSet = '{"sitelinks":false}';
-  //   window.dispatchEvent(new Event('dp-dev-set'))      change settings
+  //   window.dispatchEvent(new Event('dp-dev-set'))      change settings ("hide"
+  //                                                      changes only the sections it names)
   // (The values travel in an attribute because event details don't cross
   // from the page's scripts to this one.)
   const devSend = msg => { try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch { /* already reloaded */ } };
@@ -1329,6 +1330,7 @@
       pinned: [...document.querySelectorAll('[' + PINNED + ']')].map(el => el.getAttribute(PINNED).split(SEP)[1]),
       onAllTab: onAllResultsTab(),
       enabled: settings.enabled,
+      hide: settings.hide,
       sections: lastSections.map(s => ({
         key: s.key, hiddenSetting: !!settings.hide[s.key], visible: vis(s.block),
         height: Math.round(s.block.getBoundingClientRect().height) || null,

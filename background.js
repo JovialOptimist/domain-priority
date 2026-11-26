@@ -18,21 +18,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 // Development only: lets a test script reload the unpacked extension from a
 // Google tab (Chrome doesn't let automation press Reload on
-// chrome://extensions). Store installs carry an update_url and ignore it.
-const DEV = !('update_url' in chrome.runtime.getManifest());
+// chrome://extensions) and change settings. Only an unpacked install
+// ("Load unpacked") counts as development; store installs ignore these.
+// getSelf needs no "management" permission.
+const devMode = chrome.management.getSelf().then(info => info.installType === 'development', () => false);
 
-chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (DEV && msg && msg.type === 'dp-dev-reload') { chrome.runtime.reload(); return; }
-  if (DEV && msg && msg.type === 'dp-dev-set' && msg.values && typeof msg.values === 'object') {
-    // A "hide" value changes only the sections it names, so a test that
-    // hides one section doesn't reset the rest of the user's choices.
-    const { hide, ...rest } = msg.values;
-    if (hide && typeof hide === 'object') {
-      chrome.storage.sync.get({ hide: {} }, raw => chrome.storage.sync.set({ ...rest, hide: { ...raw.hide, ...hide } }));
-    } else {
-      chrome.storage.sync.set(msg.values);
-    }
-    return;
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg && typeof msg.type === 'string' && msg.type.startsWith('dp-dev-')) {
+    devMode.then(dev => {
+      if (msg.type === 'dp-dev-mode') sendResponse(dev);
+      else if (dev) handleDev(msg);
+    });
+    return true;   // sendResponse may be called after this returns
   }
   if (!msg || msg.type !== 'dp-badge' || !sender.tab) return;
   const tabId = sender.tab.id;
@@ -43,3 +40,17 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   chrome.action.setBadgeText({ tabId, text });
   chrome.action.setTitle({ tabId, title });
 });
+
+function handleDev(msg) {
+  if (msg.type === 'dp-dev-reload') { chrome.runtime.reload(); return; }
+  if (msg.type === 'dp-dev-set' && msg.values && typeof msg.values === 'object') {
+    // A "hide" value changes only the sections it names, so a test that
+    // hides one section doesn't reset the rest of the user's choices.
+    const { hide, ...rest } = msg.values;
+    if (hide && typeof hide === 'object') {
+      chrome.storage.sync.get({ hide: {} }, raw => chrome.storage.sync.set({ ...rest, hide: { ...raw.hide, ...hide } }));
+    } else {
+      chrome.storage.sync.set(msg.values);
+    }
+  }
+}

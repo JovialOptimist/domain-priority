@@ -1,4 +1,4 @@
-// Domain Priority for Google — content script.
+// Domain Priority — content script for Google Search.
 //
 // Core idea: never rely on Google's class names. A result card is identified
 // semantically: a link (<a>) that contains a title heading (<h3>). The card's
@@ -1325,7 +1325,8 @@
     });
   });
 
-  // Development only (the background ignores these in store installs). A
+  // Development only: these listeners exist only in an unpacked install
+  // ("Load unpacked"), and the background ignores the messages otherwise. A
   // test script on the page can:
   //   window.dispatchEvent(new Event('dp-dev-reload'))   reload the unpacked extension
   //   document.documentElement.dataset.dpDevSet = '{"sitelinks":false}';
@@ -1334,12 +1335,20 @@
   // (The values travel in an attribute because event details don't cross
   // from the page's scripts to this one.)
   const devSend = msg => { try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch { /* already reloaded */ } };
-  window.addEventListener('dp-dev-reload', () => devSend({ type: 'dp-dev-reload' }));
   //   document.documentElement.dataset.dpDevPreview = 'aiOverview';
   //   window.dispatchEvent(new Event('dp-dev-preview'))  act as if the popup points at a section ('' = none)
   //   window.dispatchEvent(new Event('dp-dev-report'))   writes a JSON audit of this page to
   //   document.documentElement.dataset.dpDevReport (see devReport below)
-  if (!('update_url' in chrome.runtime.getManifest())) {
+  chrome.runtime.sendMessage({ type: 'dp-dev-mode' }).then(dev => {
+    if (dev !== true) return;
+    window.addEventListener('dp-dev-reload', () => devSend({ type: 'dp-dev-reload' }));
+    window.addEventListener('dp-dev-set', () => {
+      const html = document.documentElement;
+      let values = null;
+      try { values = JSON.parse(html.dataset.dpDevSet || 'null'); } catch { /* ignore bad JSON */ }
+      delete html.dataset.dpDevSet;
+      if (values) devSend({ type: 'dp-dev-set', values });
+    });
     window.addEventListener('dp-dev-preview', () => {
       const html = document.documentElement;
       previewKey = html.dataset.dpDevPreview || null;
@@ -1349,7 +1358,7 @@
     window.addEventListener('dp-dev-report', () => {
       document.documentElement.dataset.dpDevReport = JSON.stringify(devReport());
     });
-  }
+  }, () => { /* extension reloaded or unavailable: no dev hooks */ });
 
   // A survey of the page for testing: what the extension recognised, how big
   // each section's box is (and whether it swallowed results or the pager),
@@ -1421,14 +1430,6 @@
       zoomed,
     };
   }
-  window.addEventListener('dp-dev-set', () => {
-    const html = document.documentElement;
-    let values = null;
-    try { values = JSON.parse(html.dataset.dpDevSet || 'null'); } catch { /* ignore bad JSON */ }
-    delete html.dataset.dpDevSet;
-    if (values) devSend({ type: 'dp-dev-set', values });
-  });
-
   // Exposed for tests only (harmless in production).
   globalThis.__domainPriority = { findCards, rankOf, resolveHref, apply, normalizeDomain, extractHit,
     sectionHeadings, collectSections, hideSections, loadSettings, positionButtons, get settings() { return settings; } };

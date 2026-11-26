@@ -13,7 +13,7 @@ pages rather than a test suite with fixed inputs.
 ## Running it
 
 1. Load the extension unpacked (`chrome://extensions` → Developer mode → Load
-   unpacked). The report is only available in that development build.
+   unpacked). The report is only available in an unpacked install.
 2. Search for each query in `queries.json`.
 3. On each results page, optionally set `window.DP_EXPECT` to the query's
    `expect` list, then paste `audit.js` into the DevTools console (or run it
@@ -62,7 +62,9 @@ doesn't run its background search for starred sites on every page.
 
 ## Development hooks
 
-From the page's own scripts (development build only):
+From the page's own scripts, only when the extension is loaded unpacked
+(Chrome reports it as a development install); store installs ignore them. The
+hooks are set up a moment after the page starts loading:
 
 - `window.dispatchEvent(new Event('dp-dev-reload'))` reloads the extension.
   Wait about 4 seconds before loading a new page.

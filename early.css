@@ -1,0 +1,12 @@
+/* Injected before Google's page is drawn (manifest "css"). Keeps the
+   results area, and the strips Google puts between the tabs and it (such
+   as "Sponsored products"), invisible until content.js has made its first
+   pass, so sections the user hid never flash on screen. content.js sets
+   data-dp-ready on <html> right after that pass, or straight away where it
+   has nothing to do. If it never does (an error, a slow settings read), the
+   animation shows the results anyway after 1.5 s. */
+html:not([data-dp-ready]) :is(#rcnt, #appbar ~ :has(~ #rcnt)) {
+  visibility: hidden;
+  animation: dp-reveal 0s 1.5s forwards;
+}
+@keyframes dp-reveal { to { visibility: visible; } }

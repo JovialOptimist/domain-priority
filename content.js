@@ -16,7 +16,7 @@
 
   const SECTIONS = globalThis.DP_SECTIONS || [];
   const DEFAULT_HIDE = Object.fromEntries(SECTIONS.map(s => [s.key, !!s.hide]));
-  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], starred: null, highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, hide: DEFAULT_HIDE };
+  const DEFAULTS = { enabled: true, domains: ['wikipedia.org'], starred: null, highlight: true, fallback: false, inlineButtons: true, sitelinks: true, chips: true, waitForSort: true, hide: DEFAULT_HIDE };
   const PINNED = 'data-dp-pinned';     // a result found by the background search for a starred domain
   const HIDDEN = 'data-dp-hidden';     // section blocks we hide (value = section key)
   const PREVIEW = 'data-dp-preview';   // blocks faded while the popup row for them is hovered
@@ -1282,20 +1282,42 @@
       inlineButtons: raw.inlineButtons ?? DEFAULTS.inlineButtons,
       sitelinks: raw.sitelinks ?? DEFAULTS.sitelinks,
       chips: raw.chips ?? DEFAULTS.chips,
+      waitForSort: raw.waitForSort ?? DEFAULTS.waitForSort,
       hide: { ...DEFAULT_HIDE, ...(raw.hide || {}) },
     };
   }
 
-  chrome.storage.sync.get(DEFAULTS, raw => {
+  // The script starts before Google's page is parsed (run_at
+  // document_start), while early.css keeps the results area invisible. The
+  // first pass waits for the whole page to be parsed, since sections are
+  // found by what surrounds their headings; then the results are shown,
+  // already sorted. Starting early saves the wait for Google's images and
+  // scripts that document_idle would add (0.2 to 1 s on popular searches).
+  // With "Wait to show results until they're sorted" off, the results show
+  // as soon as the settings are read, and the first pass moves things
+  // around on screen when it runs.
+  const READY = 'data-dp-ready';
+  const showResults = () => document.documentElement.setAttribute(READY, '');
+  if (!onAllResultsTab()) showResults();   // other tabs: nothing to sort
+  const domParsed = new Promise(res => {
+    if (document.readyState !== 'loading') res();
+    else document.addEventListener('DOMContentLoaded', res, { once: true });
+  });
+
+  chrome.storage.sync.get(DEFAULTS, async raw => {
     loadSettings(raw);
+    if (!settings.enabled || !settings.waitForSort) showResults();
+    await domParsed;
     apply();
+    showResults();
     // Re-run when Google adds results (continuous scroll, in-page navigation).
     new MutationObserver(schedule).observe(document.body, { childList: true, subtree: true });
     window.addEventListener('resize', () => requestAnimationFrame(() => { if (zoomed) updateZoom(); else positionButtons(); }));
   });
 
-  chrome.storage.onChanged.addListener((_changes, area) => {
+  chrome.storage.onChanged.addListener(async (_changes, area) => {
     if (area !== 'sync') return;
+    await domParsed;
     chrome.storage.sync.get(DEFAULTS, raw => {
       loadSettings(raw);
       removePinned();
